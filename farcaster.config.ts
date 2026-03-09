@@ -23,6 +23,7 @@ export const farcasterConfig = {
     name: "Pay Link",
     subtitle: "Simple USDC payment links",
     description: "Create and share a simple payment link on Base",
+    requiredCapabilities: ["wallet.getEthereumProvider", "actions.ready"],
     screenshotUrls: [`${ROOT_URL}/screenshot-portrait.png`],
     iconUrl: `${ROOT_URL}/blue-icon.png`,
     splashImageUrl: `${ROOT_URL}/blue-hero.png`,
