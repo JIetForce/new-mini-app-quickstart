@@ -306,6 +306,7 @@ export async function confirmPaymentLink(
             status: "paid",
             paid_at: new Date().toISOString(),
             payment_id: input.paymentId,
+            payer_address: input.payerAddress,
           });
 
     return {

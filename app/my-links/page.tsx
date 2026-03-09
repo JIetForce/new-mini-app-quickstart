@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 
-import type {
+import {
+  getCreatorIdentityParts,
   PaymentLinkStatus,
   PublicPaymentLink,
 } from "@/lib/payment-links/shared";
@@ -44,6 +45,7 @@ export default function MyLinksPage() {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -94,6 +96,17 @@ export default function MyLinksPage() {
         setIsLoading(false);
       });
   }, [address, page, statusFilter]);
+
+  async function handleCopyLink(slug: string) {
+    try {
+      const shareUrl = new URL(`/r/${slug}`, window.location.origin).toString();
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedSlug(slug);
+      window.setTimeout(() => setCopiedSlug((currentSlug) => (currentSlug === slug ? null : currentSlug)), 1500);
+    } catch {
+      setCopiedSlug(null);
+    }
+  }
 
   return (
     <main className={styles.shell}>
@@ -149,8 +162,11 @@ export default function MyLinksPage() {
             <p className={styles.helper}>No links found for this creator yet.</p>
           ) : null}
 
-          {links.map((link) => (
-            <Link className={styles.linkCard} href={`/r/${link.slug}`} key={link.id}>
+          {links.map((link) => {
+            const creatorIdentity = getCreatorIdentityParts(link);
+
+            return (
+              <div className={styles.linkCard} key={link.id}>
               <div className={styles.linkCardHeader}>
                 <strong className={styles.summaryValue}>
                   {link.title || `${formatAmount(link.amountUsdc)} USDC`}
@@ -161,12 +177,30 @@ export default function MyLinksPage() {
               </div>
               <div className={styles.linkMetaGrid}>
                 <span>Amount: ${formatAmount(link.amountUsdc)} USDC</span>
-                <span>Recipient: {link.recipientAddress}</span>
+                <span title={link.creatorAddress}>
+                  Creator: You · {creatorIdentity.primary}
+                </span>
+                <span title={link.recipientAddress}>
+                  Recipient: {link.recipientAddress}
+                </span>
                 <span>Created: {formatDate(link.createdAt)}</span>
                 <span>Paid: {formatDate(link.paidAt)}</span>
               </div>
-            </Link>
-          ))}
+              <div className={styles.linkCardActions}>
+                <Link className={styles.secondaryButton} href={`/r/${link.slug}`}>
+                  Open link
+                </Link>
+                <button
+                  className={styles.ghostButton}
+                  onClick={() => void handleCopyLink(link.slug)}
+                  type="button"
+                >
+                  {copiedSlug === link.slug ? "Copied" : "Copy link"}
+                </button>
+              </div>
+            </div>
+            );
+          })}
         </div>
 
         {address ? (

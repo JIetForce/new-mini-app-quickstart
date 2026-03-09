@@ -31,6 +31,7 @@ export interface PaymentLinkRecord {
   note: string | null;
   status: PaymentLinkStatus;
   payment_id: string | null;
+  payer_address: string | null;
   expires_at: string | null;
   paid_at: string | null;
   created_at: string;
@@ -59,6 +60,7 @@ export interface PublicPaymentLink {
   note: string | null;
   status: PaymentLinkStatus;
   paymentId: string | null;
+  payerAddress: string | null;
   expiresAt: string | null;
   paidAt: string | null;
   createdAt: string;
@@ -79,7 +81,14 @@ export interface CreatePaymentLinkInput {
 
 export interface ConfirmPaymentLinkInput {
   paymentId: string;
+  payerAddress: string | null;
   status: PaymentAttemptStatus;
+}
+
+interface CreatorIdentitySource {
+  creatorAddress: string;
+  creatorDisplayName: string | null;
+  creatorUsername: string | null;
 }
 
 function trimToNull(value: unknown, maxLength: number): string | null {
@@ -109,6 +118,20 @@ function normalizeOptionalFid(value: unknown): number | null {
         : Number.NaN;
 
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeOptionalAddress(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed || !isAddress(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 export function normalizeUsdcAmount(value: unknown): string {
@@ -168,9 +191,8 @@ export function parseCreatePaymentLinkInput(value: unknown): CreatePaymentLinkIn
     payload.recipientAddress,
     "Recipient address",
   );
-  const creatorAddress = payload.creatorAddress
-    ? normalizeAddress(payload.creatorAddress, "Creator address")
-    : recipientAddress;
+  const creatorAddress =
+    normalizeOptionalAddress(payload.creatorAddress) ?? recipientAddress;
 
   return {
     amountUsdc: normalizeUsdcAmount(payload.amountUsdc),
@@ -209,6 +231,7 @@ export function parseConfirmPaymentLinkInput(
 
   return {
     paymentId,
+    payerAddress: normalizeOptionalAddress(payload.payerAddress),
     status: status as PaymentAttemptStatus,
   };
 }
@@ -227,6 +250,44 @@ export function createPaymentLinkSlug(): string {
   return `pl-${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
 }
 
+export function shortenAddress(address: string): string {
+  if (address.length <= 12) {
+    return address;
+  }
+
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+export function getCreatorIdentityParts(source: CreatorIdentitySource): {
+  primary: string;
+  secondary: string | null;
+  address: string | null;
+} {
+  const shortenedAddress = shortenAddress(source.creatorAddress);
+
+  if (source.creatorDisplayName) {
+    return {
+      primary: source.creatorDisplayName,
+      secondary: source.creatorUsername ? `@${source.creatorUsername}` : null,
+      address: shortenedAddress,
+    };
+  }
+
+  if (source.creatorUsername) {
+    return {
+      primary: source.creatorUsername,
+      secondary: null,
+      address: shortenedAddress,
+    };
+  }
+
+  return {
+    primary: shortenedAddress,
+    secondary: null,
+    address: null,
+  };
+}
+
 export function toPublicPaymentLink(link: PaymentLinkRecord): PublicPaymentLink {
   return {
     id: link.id,
@@ -242,6 +303,7 @@ export function toPublicPaymentLink(link: PaymentLinkRecord): PublicPaymentLink 
     note: link.note,
     status: link.status,
     paymentId: link.payment_id,
+    payerAddress: link.payer_address,
     expiresAt: link.expires_at,
     paidAt: link.paid_at,
     createdAt: link.created_at,

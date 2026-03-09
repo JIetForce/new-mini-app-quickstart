@@ -63,6 +63,17 @@
   background: #f8fbff;
 }
 
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid #dbe4f0;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
 .summaryLabel {
   font-size: 0.85rem;
   color: #64748b;
@@ -299,6 +310,12 @@
   gap: 12px;
 }
 
+.linkCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .linkMetaGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -351,6 +368,10 @@
   }
 
   .actions > * {
+    width: 100%;
+  }
+
+  .linkCardActions > * {
     width: 100%;
   }
 }

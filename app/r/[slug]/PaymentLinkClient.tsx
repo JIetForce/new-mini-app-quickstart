@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { getPaymentStatus, pay } from "@base-org/account";
 
-import type { PaymentAttemptStatus, PublicPaymentLink } from "@/lib/payment-links/shared";
+import {
+  getCreatorIdentityParts,
+  type PaymentAttemptStatus,
+  type PublicPaymentLink,
+} from "@/lib/payment-links/shared";
 
 import styles from "../../page.module.css";
 
@@ -40,18 +44,6 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
-function shortenAddress(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function getCreatorLabel(link: PublicPaymentLink): string {
-  return (
-    link.creatorDisplayName ||
-    link.creatorUsername ||
-    shortenAddress(link.creatorAddress)
-  );
-}
-
 export default function PaymentLinkClient({
   initialLink,
   initialShareUrl,
@@ -66,6 +58,7 @@ export default function PaymentLinkClient({
   const [isPaying, setIsPaying] = useState(false);
   const [isRefreshing, startRefresh] = useTransition();
   const [copyLabel, setCopyLabel] = useState("Copy link");
+  const creatorIdentity = getCreatorIdentityParts(link);
 
   const canPay = link.status === "active";
 
@@ -85,7 +78,11 @@ export default function PaymentLinkClient({
     setShareUrl(payload.shareUrl);
   }
 
-  async function confirmPayment(paymentId: string, status: PaymentAttemptStatus) {
+  async function confirmPayment(
+    paymentId: string,
+    status: PaymentAttemptStatus,
+    payerAddress: string | null,
+  ) {
     const response = await fetch(`/api/links/${link.slug}/confirm`, {
       method: "POST",
       headers: {
@@ -93,6 +90,7 @@ export default function PaymentLinkClient({
       },
       body: JSON.stringify({
         paymentId,
+        payerAddress,
         status,
       }),
     });
@@ -115,7 +113,7 @@ export default function PaymentLinkClient({
       testnet: false,
     });
 
-    await confirmPayment(paymentId, status.status);
+    await confirmPayment(paymentId, status.status, status.sender ?? null);
     setLastPaymentId(paymentId);
     setPaymentMessage(status.reason || status.message);
 
@@ -224,26 +222,26 @@ export default function PaymentLinkClient({
         <div className={styles.creatorCard}>
           {link.creatorPfpUrl ? (
             <div
-              aria-label={getCreatorLabel(link)}
+              aria-label={creatorIdentity.primary}
               className={styles.creatorAvatar}
               role="img"
               style={{ backgroundImage: `url(${link.creatorPfpUrl})` }}
             />
           ) : (
             <div className={styles.creatorAvatarFallback}>
-              {getCreatorLabel(link).slice(0, 1).toUpperCase()}
+              {creatorIdentity.primary.slice(0, 1).toUpperCase()}
             </div>
           )}
           <div className={styles.creatorText}>
             <strong className={styles.summaryValue}>
-              {getCreatorLabel(link)}
+              {creatorIdentity.primary}
             </strong>
-            <span className={styles.helper}>
-              {link.creatorUsername ? `@${link.creatorUsername}` : "No username"}
-            </span>
-            <span className={styles.helper}>
-              {shortenAddress(link.creatorAddress)}
-            </span>
+            {creatorIdentity.secondary ? (
+              <span className={styles.helper}>{creatorIdentity.secondary}</span>
+            ) : null}
+            {creatorIdentity.address ? (
+              <span className={styles.helper}>{creatorIdentity.address}</span>
+            ) : null}
           </div>
         </div>
 
@@ -262,13 +260,24 @@ export default function PaymentLinkClient({
           </div>
           <div className={styles.summaryItem}>
             <span className={styles.summaryLabel}>Recipient</span>
-            <code className={styles.inlineCode}>{link.recipientAddress}</code>
+            <span className={styles.summaryValue} title={link.recipientAddress}>
+              {link.recipientAddress}
+            </span>
           </div>
           <div className={styles.summaryItem}>
             <span className={styles.summaryLabel}>Expires</span>
             <span className={styles.summaryValue}>{formatDate(link.expiresAt)}</span>
           </div>
         </div>
+
+        {link.payerAddress ? (
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>Paid by</span>
+            <span className={styles.summaryValue} title={link.payerAddress}>
+              {link.payerAddress}
+            </span>
+          </div>
+        ) : null}
 
         <div className={styles.shareRow}>
           <input
