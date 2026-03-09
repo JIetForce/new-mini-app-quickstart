@@ -108,11 +108,7 @@ function normalizeOptionalFid(value: unknown): number | null {
         ? Number(value)
         : Number.NaN;
 
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error("Creator FID must be a positive integer.");
-  }
-
-  return parsed;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 export function normalizeUsdcAmount(value: unknown): string {

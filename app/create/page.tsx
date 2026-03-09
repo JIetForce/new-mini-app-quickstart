@@ -28,6 +28,11 @@ export default function CreatePage() {
     }
   }, [address, recipientEdited]);
 
+  const creatorFid =
+    typeof context?.user?.fid === "number" && context.user.fid > 0
+      ? context.user.fid
+      : null;
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -42,7 +47,7 @@ export default function CreatePage() {
         body: JSON.stringify({
           amountUsdc,
           creatorAddress: address ?? recipientAddress,
-          creatorFid: context?.user?.fid ?? null,
+          creatorFid,
           creatorUsername: context?.user?.username ?? null,
           creatorDisplayName: context?.user?.displayName ?? null,
           creatorPfpUrl: context?.user?.pfpUrl ?? null,
