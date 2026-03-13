@@ -1,0 +1,44 @@
+/* Typography tokens from Figma */
+
+:root {
+  /* Font families — CSS variables set by next/font in layout.tsx */
+  --font-family-display: var(--font-geologica, 'Geologica', sans-serif);
+  --font-family-subtitle: var(--font-source-serif-4, 'Source Serif 4', serif);
+  --font-family-body: var(--font-geologica, 'Geologica', sans-serif);
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Font sizes — text */
+  --font-size-text-xs: 12px;
+  --font-size-text-sm: 14px;
+  --font-size-text-md: 16px;
+  --font-size-text-lg: 18px;
+  --font-size-text-xl: 20px;
+
+  /* Font sizes — display */
+  --font-size-display-xs: 24px;
+  --font-size-display-sm: 30px;
+  --font-size-display-md: 36px;
+  --font-size-display-lg: 48px;
+  --font-size-display-xl: 60px;
+  --font-size-display-2xl: 72px;
+
+  /* Line heights — text */
+  --line-height-text-xs: 18px;
+  --line-height-text-sm: 20px;
+  --line-height-text-md: 24px;
+  --line-height-text-lg: 28px;
+  --line-height-text-xl: 30px;
+
+  /* Line heights — display */
+  --line-height-display-xs: 32px;
+  --line-height-display-sm: 38px;
+  --line-height-display-md: 44px;
+  --line-height-display-lg: 60px;
+  --line-height-display-xl: 72px;
+  --line-height-display-2xl: 90px;
+}

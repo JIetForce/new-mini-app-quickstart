@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, Source_Code_Pro } from "next/font/google";
+import { Inter, Source_Code_Pro, Geist } from "next/font/google";
 import { SafeArea } from "./components/SafeArea";
 import { farcasterConfig } from "../farcaster.config";
 import { Providers } from "./providers";
-import "./globals.css";
+import { cn } from "@/lib/utils";
+import "@/styles/globals.css";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -43,7 +46,7 @@ export default function RootLayout({
 }>) {
   return (
     <Providers>
-      <html lang="en">
+      <html lang="en" className={cn("dark font-sans", geist.variable)}>
         <body className={`${inter.variable} ${sourceCodePro.variable}`}>
           <SafeArea>{children}</SafeArea>
         </body>

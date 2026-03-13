@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  mapSupabaseAuthError,
+  requireWalletSession,
+} from "@/lib/auth/server";
+import {
   PaymentLinkServiceError,
   getCreatorPaymentLinks,
 } from "@/lib/payment-links/server";
@@ -14,16 +18,8 @@ export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
+    const session = requireWalletSession(request);
     const searchParams = request.nextUrl.searchParams;
-    const creatorAddress = searchParams.get("creatorAddress");
-
-    if (!creatorAddress) {
-      return NextResponse.json(
-        { message: "Creator address is required." },
-        { status: 400 },
-      );
-    }
-
     const rawStatus = searchParams.get("status");
     const status =
       rawStatus && PAYMENT_LINK_STATUSES.includes(rawStatus as PaymentLinkStatus)
@@ -32,7 +28,7 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get("page") ?? "1");
     const pageSize = Number(searchParams.get("pageSize") ?? "10");
     const result = await getCreatorPaymentLinks({
-      creatorAddress,
+      creatorAddress: session.address,
       page,
       pageSize,
       status,
@@ -48,6 +44,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { message: error.message },
         { status: error.status },
+      );
+    }
+
+    const authError = mapSupabaseAuthError(error);
+
+    if (authError) {
+      return NextResponse.json(
+        { message: authError.message },
+        { status: authError.status },
       );
     }
 

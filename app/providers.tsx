@@ -1,7 +1,13 @@
 "use client";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { base } from "wagmi/chains";
-import { createConfig, http, useAccount, useConnect, WagmiProvider } from "wagmi";
+import {
+  createConfig,
+  http,
+  useAccount,
+  useConnect,
+  WagmiProvider,
+} from "wagmi";
 import { baseAccount } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
@@ -28,7 +34,13 @@ function MiniAppWalletBootstrap() {
   const { connectAsync, connectors } = useConnect();
 
   useEffect(() => {
-    if (!isReady || address || isConnecting || isReconnecting || hasAttemptedConnection.current) {
+    if (
+      !isReady ||
+      address ||
+      isConnecting ||
+      isReconnecting ||
+      hasAttemptedConnection.current
+    ) {
       return;
     }
 
@@ -45,7 +57,14 @@ function MiniAppWalletBootstrap() {
     void connectAsync({ connector: farcasterConnector }).catch(() => {
       hasAttemptedConnection.current = false;
     });
-  }, [address, connectAsync, connectors, isConnecting, isReady, isReconnecting]);
+  }, [
+    address,
+    connectAsync,
+    connectors,
+    isConnecting,
+    isReady,
+    isReconnecting,
+  ]);
 
   return null;
 }
@@ -55,7 +74,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <MiniAppProvider>
-      <WagmiProvider config={config}>
+      <WagmiProvider config={config} reconnectOnMount={false}>
         <QueryClientProvider client={queryClient}>
           <MiniAppWalletBootstrap />
           {children}

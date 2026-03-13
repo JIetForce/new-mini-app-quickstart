@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { getPaymentStatus, pay } from "@base-org/account";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   getCreatorIdentityParts,
-  type PaymentAttemptStatus,
   type PublicPaymentLink,
 } from "@/lib/payment-links/shared";
-
-import styles from "../../page.module.css";
+import { cn } from "@/lib/utils";
 
 interface PaymentLinkClientProps {
   initialLink: PublicPaymentLink;
@@ -28,6 +29,25 @@ const STATUS_COPY: Record<PublicPaymentLink["status"], string> = {
   expired: "Expired",
   canceled: "Canceled",
 };
+
+const STATUS_VARIANTS: Record<
+  PublicPaymentLink["status"],
+  "default" | "success" | "warning" | "destructive"
+> = {
+  active: "default",
+  paid: "success",
+  expired: "warning",
+  canceled: "destructive",
+};
+
+const PRIMARY_BUTTON_CLASS = "h-11 rounded-full px-5";
+
+const SECONDARY_BUTTON_CLASS = "h-11 rounded-full px-5";
+
+const OUTLINE_BUTTON_CLASS = "h-11 rounded-full px-5";
+
+const SUMMARY_CARD_CLASS =
+  "rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4";
 
 function formatAmount(amountUsdc: string): string {
   return new Intl.NumberFormat("en-US", {
@@ -80,8 +100,6 @@ export default function PaymentLinkClient({
 
   async function confirmPayment(
     paymentId: string,
-    status: PaymentAttemptStatus,
-    payerAddress: string | null,
   ) {
     const response = await fetch(`/api/links/${link.slug}/confirm`, {
       method: "POST",
@@ -90,8 +108,6 @@ export default function PaymentLinkClient({
       },
       body: JSON.stringify({
         paymentId,
-        payerAddress,
-        status,
       }),
     });
 
@@ -113,7 +129,7 @@ export default function PaymentLinkClient({
       testnet: false,
     });
 
-    await confirmPayment(paymentId, status.status, status.sender ?? null);
+    await confirmPayment(paymentId);
     setLastPaymentId(paymentId);
     setPaymentMessage(status.reason || status.message);
 
@@ -200,126 +216,149 @@ export default function PaymentLinkClient({
   }
 
   return (
-    <main className={styles.shell}>
-      <section className={styles.card}>
-        <div className={styles.cardHeader}>
-          <p className={styles.eyebrow}>Pay Link</p>
-          <h1 className={styles.title}>{link.title || "One-time USDC payment"}</h1>
-          <p className={styles.subtitle}>
+    <main className="min-h-screen bg-bg-secondary-subtle px-4 py-8 sm:px-6 sm:py-10">
+      <section className="mx-auto w-full max-w-3xl rounded-3xl border border-border-primary bg-bg-primary p-6 text-text-primary shadow-[0px_12px_40px_0px_var(--color-shadow-lg-1)] sm:p-8">
+        <div className="mb-6 flex flex-col gap-3">
+          <p className="text-xs font-bold tracking-[0.12em] text-text-brand-secondary uppercase">
+            Pay Link
+          </p>
+          <h1 className="font-display text-display-sm font-medium tracking-[-0.04em] text-text-primary sm:text-display-md">
+            {link.title || "One-time USDC payment"}
+          </h1>
+          <p className="text-md text-text-secondary">
             {link.note || "Pay once with Base Pay. This link closes after a successful payment."}
           </p>
         </div>
 
-        <div className={styles.actions}>
-          <Link className={styles.secondaryButton} href="/">
-            Back to home
-          </Link>
-          <Link className={styles.ghostButton} href="/create">
-            Create your own payment link
-          </Link>
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <Button asChild className={SECONDARY_BUTTON_CLASS} size="lg" variant="secondary">
+            <Link href="/">Back to home</Link>
+          </Button>
+          <Button asChild className={OUTLINE_BUTTON_CLASS} size="lg" variant="outline">
+            <Link href="/create">Create your own payment link</Link>
+          </Button>
         </div>
 
-        <div className={styles.creatorCard}>
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4">
           {link.creatorPfpUrl ? (
             <div
               aria-label={creatorIdentity.primary}
-              className={styles.creatorAvatar}
+              className="size-12 rounded-full bg-bg-tertiary bg-cover bg-center bg-no-repeat"
               role="img"
               style={{ backgroundImage: `url(${link.creatorPfpUrl})` }}
             />
           ) : (
-            <div className={styles.creatorAvatarFallback}>
+            <div className="inline-flex size-12 items-center justify-center rounded-full bg-bg-brand-secondary font-semibold text-fg-brand-primary">
               {creatorIdentity.primary.slice(0, 1).toUpperCase()}
             </div>
           )}
-          <div className={styles.creatorText}>
-            <strong className={styles.summaryValue}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <strong className="[overflow-wrap:anywhere] text-sm font-semibold text-text-primary">
               {creatorIdentity.primary}
             </strong>
             {creatorIdentity.secondary ? (
-              <span className={styles.helper}>{creatorIdentity.secondary}</span>
+              <span className="text-sm leading-6 text-text-tertiary">
+                {creatorIdentity.secondary}
+              </span>
             ) : null}
             {creatorIdentity.address ? (
-              <span className={styles.helper}>{creatorIdentity.address}</span>
+              <span className="[overflow-wrap:anywhere] text-sm leading-6 text-text-tertiary">
+                {creatorIdentity.address}
+              </span>
             ) : null}
           </div>
         </div>
 
-        <div className={styles.summaryGrid}>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryLabel}>Amount</span>
-            <strong className={styles.summaryValue}>
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          <div className={SUMMARY_CARD_CLASS}>
+            <span className="text-sm text-text-tertiary">Amount</span>
+            <strong className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary">
               ${formatAmount(link.amountUsdc)} USDC
             </strong>
           </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryLabel}>Status</span>
-            <span className={`${styles.statusPill} ${styles[`status${link.status}`]}`}>
+          <div className={SUMMARY_CARD_CLASS}>
+            <span className="text-sm text-text-tertiary">Status</span>
+            <Badge className="mt-2" variant={STATUS_VARIANTS[link.status]}>
               {STATUS_COPY[link.status]}
-            </span>
+            </Badge>
           </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryLabel}>Recipient</span>
-            <span className={styles.summaryValue} title={link.recipientAddress}>
+          <div className={SUMMARY_CARD_CLASS}>
+            <span className="text-sm text-text-tertiary">Recipient</span>
+            <span
+              className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary"
+              title={link.recipientAddress}
+            >
               {link.recipientAddress}
             </span>
           </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryLabel}>Expires</span>
-            <span className={styles.summaryValue}>{formatDate(link.expiresAt)}</span>
+          <div className={SUMMARY_CARD_CLASS}>
+            <span className="text-sm text-text-tertiary">Expires</span>
+            <span className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary">
+              {formatDate(link.expiresAt)}
+            </span>
           </div>
         </div>
 
         {link.payerAddress ? (
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Paid by</span>
-            <span className={styles.summaryValue} title={link.payerAddress}>
+          <div className={cn("mb-5", SUMMARY_CARD_CLASS)}>
+            <span className="text-sm text-text-tertiary">Paid by</span>
+            <span
+              className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary"
+              title={link.payerAddress}
+            >
               {link.payerAddress}
             </span>
           </div>
         ) : null}
 
-        <div className={styles.shareRow}>
-          <input
-            aria-label="Share URL"
-            className={styles.input}
-            readOnly
-            type="text"
-            value={shareUrl}
-          />
-          <button className={styles.secondaryButton} onClick={handleCopyLink} type="button">
+        <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <Input aria-label="Share URL" className="h-11" readOnly type="text" value={shareUrl} />
+          <Button
+            className={SECONDARY_BUTTON_CLASS}
+            onClick={handleCopyLink}
+            size="lg"
+            type="button"
+            variant="secondary"
+          >
             {copyLabel}
-          </button>
+          </Button>
         </div>
 
-        {paymentMessage ? <p className={styles.helper}>{paymentMessage}</p> : null}
-        {error ? <p className={styles.errorText}>{error}</p> : null}
+        {paymentMessage ? (
+          <p className="mb-2 text-sm leading-6 text-text-tertiary">{paymentMessage}</p>
+        ) : null}
+        {error ? (
+          <p className="mb-2 text-sm font-medium text-text-error-primary">{error}</p>
+        ) : null}
 
-        <div className={styles.actions}>
+        <div className="flex flex-wrap items-center gap-3">
           {canPay ? (
-            <button
-              className={styles.primaryButton}
+            <Button
+              className={PRIMARY_BUTTON_CLASS}
               disabled={isPaying}
               onClick={handlePay}
+              size="lg"
               type="button"
             >
               {isPaying ? "Processing..." : `Pay $${formatAmount(link.amountUsdc)}`}
-            </button>
+            </Button>
           ) : null}
 
           {lastPaymentId && link.status !== "paid" ? (
-            <button
-              className={styles.secondaryButton}
+            <Button
+              className={SECONDARY_BUTTON_CLASS}
               disabled={isPaying}
               onClick={handleCheckStatus}
+              size="lg"
               type="button"
+              variant="secondary"
             >
               Check payment status
-            </button>
+            </Button>
           ) : null}
 
-          <button
-            className={styles.ghostButton}
+          <Button
+            className={OUTLINE_BUTTON_CLASS}
             disabled={isRefreshing}
             onClick={() => {
               startRefresh(() => {
@@ -332,10 +371,12 @@ export default function PaymentLinkClient({
                 });
               });
             }}
+            size="lg"
             type="button"
+            variant="outline"
           >
             {isRefreshing ? "Refreshing..." : "Refresh link"}
-          </button>
+          </Button>
         </div>
       </section>
     </main>

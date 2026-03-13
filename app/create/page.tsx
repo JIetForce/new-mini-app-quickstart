@@ -1,17 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useWalletSession } from "@/lib/auth/useWalletSession";
+
 import { useMiniApp } from "../providers/MiniAppProvider";
-import styles from "../page.module.css";
 
 export default function CreatePage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
+  const {
+    authenticate,
+    error: authError,
+    isAuthenticating,
+    isLoading: isSessionLoading,
+    session,
+    sessionMismatch,
+  } = useWalletSession();
   const [amountUsdc, setAmountUsdc] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
   const [title, setTitle] = useState("");
@@ -36,6 +48,12 @@ export default function CreatePage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!session || sessionMismatch) {
+      setError("Sign in with your wallet before creating a payment link.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -46,7 +64,6 @@ export default function CreatePage() {
         },
         body: JSON.stringify({
           amountUsdc,
-          creatorAddress: address ?? recipientAddress,
           creatorFid,
           creatorUsername: context?.user?.username ?? null,
           creatorDisplayName: context?.user?.displayName ?? null,
@@ -80,22 +97,88 @@ export default function CreatePage() {
   }
 
   return (
-    <main className={styles.shell}>
-      <section className={styles.card}>
-        <div className={styles.cardHeader}>
-          <p className={styles.eyebrow}>Create</p>
-          <h1 className={styles.title}>Create a one-time USDC payment link</h1>
-          <p className={styles.subtitle}>
+    <main className="min-h-screen bg-bg-secondary-subtle px-4 py-8 sm:px-6 sm:py-10">
+      <section className="mx-auto w-full max-w-3xl rounded-3xl border border-border-primary bg-bg-primary p-6 text-text-primary shadow-[0px_12px_40px_0px_var(--color-shadow-lg-1)] sm:p-8">
+        <div className="mb-6 flex flex-col gap-3">
+          <p className="text-xs font-bold tracking-[0.12em] text-text-brand-secondary uppercase">
+            Create
+          </p>
+          <h1 className="font-display text-display-sm font-medium tracking-[-0.04em] text-text-primary sm:text-display-md">
+            Create a one-time USDC payment link
+          </h1>
+          <p className="text-md text-text-secondary">
             Recipient defaults to the connected Base Account when available. The
             link can be paid once and then locks.
           </p>
         </div>
 
-        <form className={styles.form} onSubmit={handleSubmit}>
-          <label className={styles.field}>
-            <span className={styles.label}>Amount (USDC)</span>
-            <input
-              className={styles.input}
+        <div className="mb-6 rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4">
+          {isSessionLoading ? (
+            <p className="text-sm leading-6 text-text-tertiary">
+              Checking wallet session...
+            </p>
+          ) : sessionMismatch ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm leading-6 text-text-secondary">
+                Connected wallet and signed-in wallet do not match. Re-authenticate
+                before creating links.
+              </p>
+              <div className="flex flex-wrap gap-3 text-sm text-text-tertiary">
+                <span className="[overflow-wrap:anywhere]">
+                  Connected: {address}
+                </span>
+                <span className="[overflow-wrap:anywhere]">
+                  Session: {session?.address}
+                </span>
+              </div>
+              <Button
+                className="h-11 rounded-full px-5"
+                disabled={isAuthenticating}
+                onClick={() => void authenticate()}
+                size="lg"
+                type="button"
+              >
+                {isAuthenticating ? "Signing in..." : "Sign in again"}
+              </Button>
+            </div>
+          ) : session ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-text-primary">
+                Wallet session
+              </span>
+              <code className="[overflow-wrap:anywhere] text-sm text-text-primary">
+                {session.address}
+              </code>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm leading-6 text-text-secondary">
+                Sign in with your wallet before creating owner-scoped payment links.
+              </p>
+              <Button
+                className="h-11 rounded-full px-5"
+                disabled={isAuthenticating}
+                onClick={() => void authenticate()}
+                size="lg"
+                type="button"
+              >
+                {isAuthenticating ? "Signing in..." : "Sign in with wallet"}
+              </Button>
+            </div>
+          )}
+          {authError ? (
+            <p className="mt-3 text-sm font-medium text-text-error-primary">
+              {authError}
+            </p>
+          ) : null}
+        </div>
+
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-text-primary">
+              Amount (USDC)
+            </span>
+            <Input
               inputMode="decimal"
               min="0"
               name="amountUsdc"
@@ -108,27 +191,34 @@ export default function CreatePage() {
           </label>
 
           {address && !showRecipientOverride ? (
-            <div className={styles.field}>
-              <span className={styles.label}>Recipient address</span>
-              <div className={styles.addressPreview}>
-                <code className={styles.inlineCode}>{recipientAddress || address}</code>
-                <button
-                  className={styles.inlineButton}
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-text-primary">
+                Recipient address
+              </span>
+              <div className="flex flex-col gap-3 rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4 sm:flex-row sm:items-center sm:justify-between">
+                <code className="[overflow-wrap:anywhere] text-sm text-text-primary">
+                  {recipientAddress || address}
+                </code>
+                <Button
+                  className="h-9 rounded-full px-4 text-sm"
                   onClick={() => setShowRecipientOverride(true)}
+                  size="sm"
                   type="button"
+                  variant="ghost"
                 >
                   Edit
-                </button>
+                </Button>
               </div>
-              <span className={styles.helper}>
+              <span className="text-sm leading-6 text-text-tertiary">
                 Auto-filled from the connected Base Account.
               </span>
             </div>
           ) : (
-            <label className={styles.field}>
-              <span className={styles.label}>Recipient address</span>
-              <input
-                className={styles.input}
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-text-primary">
+                Recipient address
+              </span>
+              <Input
                 name="recipientAddress"
                 onChange={(event) => {
                   setRecipientEdited(true);
@@ -140,7 +230,7 @@ export default function CreatePage() {
                 type="text"
                 value={recipientAddress}
               />
-              <span className={styles.helper}>
+              <span className="text-sm leading-6 text-text-tertiary">
                 {isConnected
                   ? "Connected wallet detected. Override it only if this payment should go somewhere else."
                   : "Wallet autofill works in Base Preview or the Base app. In a normal browser, enter the recipient manually."}
@@ -148,10 +238,11 @@ export default function CreatePage() {
             </label>
           )}
 
-          <label className={styles.field}>
-            <span className={styles.label}>Title (optional)</span>
-            <input
-              className={styles.input}
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-text-primary">
+              Title (optional)
+            </span>
+            <Input
               maxLength={120}
               name="title"
               onChange={(event) => setTitle(event.target.value)}
@@ -161,10 +252,11 @@ export default function CreatePage() {
             />
           </label>
 
-          <label className={styles.field}>
-            <span className={styles.label}>Note (optional)</span>
-            <textarea
-              className={styles.textarea}
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-text-primary">
+              Note (optional)
+            </span>
+            <Textarea
               maxLength={500}
               name="note"
               onChange={(event) => setNote(event.target.value)}
@@ -174,10 +266,11 @@ export default function CreatePage() {
             />
           </label>
 
-          <label className={styles.field}>
-            <span className={styles.label}>Expiration (optional)</span>
-            <input
-              className={styles.input}
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-text-primary">
+              Expiration (optional)
+            </span>
+            <Input
               min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
               name="expiresAt"
               onChange={(event) => setExpiresAt(event.target.value)}
@@ -186,19 +279,30 @@ export default function CreatePage() {
             />
           </label>
 
-          {error ? <p className={styles.errorText}>{error}</p> : null}
+          {error ? (
+            <p className="text-sm font-medium text-text-error-primary">
+              {error}
+            </p>
+          ) : null}
 
-          <div className={styles.actions}>
-            <button
-              className={styles.primaryButton}
-              disabled={isSubmitting}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              className="h-11 rounded-full px-5"
+              disabled={
+                isSubmitting ||
+                isSessionLoading ||
+                isAuthenticating ||
+                !session ||
+                sessionMismatch
+              }
+              size="lg"
               type="submit"
             >
               {isSubmitting ? "Creating..." : "Create payment link"}
-            </button>
-            <Link className={styles.secondaryButton} href="/">
-              Home
-            </Link>
+            </Button>
+            <Button asChild className="h-11 rounded-full px-5" size="lg" variant="secondary">
+              <Link href="/">Home</Link>
+            </Button>
           </div>
         </form>
       </section>

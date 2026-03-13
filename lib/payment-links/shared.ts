@@ -1,4 +1,4 @@
-import { isAddress } from "viem";
+import { getAddress, isAddress } from "viem";
 
 export const PAYMENT_LINK_STATUSES = [
   "active",
@@ -81,8 +81,6 @@ export interface CreatePaymentLinkInput {
 
 export interface ConfirmPaymentLinkInput {
   paymentId: string;
-  payerAddress: string | null;
-  status: PaymentAttemptStatus;
 }
 
 interface CreatorIdentitySource {
@@ -131,7 +129,7 @@ function normalizeOptionalAddress(value: unknown): string | null {
     return null;
   }
 
-  return trimmed;
+  return getAddress(trimmed);
 }
 
 export function normalizeUsdcAmount(value: unknown): string {
@@ -156,7 +154,18 @@ export function normalizeAddress(value: unknown, fieldName: string): string {
     throw new Error(`${fieldName} must be a valid Base address.`);
   }
 
-  return value.trim();
+  return getAddress(value.trim());
+}
+
+export function normalizePaymentId(value: unknown): string {
+  const paymentId =
+    typeof value === "string" ? value.trim() : "";
+
+  if (!/^0x[a-fA-F0-9]{64}$/.test(paymentId)) {
+    throw new Error("Payment ID must be a valid transaction hash.");
+  }
+
+  return paymentId;
 }
 
 export function normalizeExpiration(value: unknown): string | null {
@@ -216,23 +225,9 @@ export function parseConfirmPaymentLinkInput(
   }
 
   const payload = value as Record<string, unknown>;
-  const paymentId =
-    typeof payload.paymentId === "string" ? payload.paymentId.trim() : "";
-  const status =
-    typeof payload.status === "string" ? payload.status.trim() : "";
-
-  if (!paymentId) {
-    throw new Error("Payment ID is required.");
-  }
-
-  if (!PAYMENT_ATTEMPT_STATUSES.includes(status as PaymentAttemptStatus)) {
-    throw new Error("Payment status is invalid.");
-  }
 
   return {
-    paymentId,
-    payerAddress: normalizeOptionalAddress(payload.payerAddress),
-    status: status as PaymentAttemptStatus,
+    paymentId: normalizePaymentId(payload.paymentId),
   };
 }
 

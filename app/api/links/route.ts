@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  mapSupabaseAuthError,
+  requireWalletSession,
+} from "@/lib/auth/server";
+import {
   PaymentLinkServiceError,
   buildPaymentLinkUrl,
   createPaymentLink,
@@ -11,8 +15,12 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = requireWalletSession(request);
     const body = await request.json();
-    const link = await createPaymentLink(body);
+    const link = await createPaymentLink({
+      ...body,
+      creatorAddress: session.address,
+    });
 
     return NextResponse.json(
       {
@@ -26,6 +34,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { message: error.message },
         { status: error.status },
+      );
+    }
+
+    const authError = mapSupabaseAuthError(error);
+
+    if (authError) {
+      return NextResponse.json(
+        { message: authError.message },
+        { status: authError.status },
       );
     }
 

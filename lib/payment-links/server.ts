@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getPaymentStatus } from "@base-org/account";
 import { getAppUrl } from "@/lib/env";
 import {
   SupabaseRequestError,
@@ -15,6 +16,7 @@ import {
   createPaymentLinkSlug,
   isPaymentLinkExpired,
   normalizeAddress,
+  normalizeUsdcAmount,
   parseConfirmPaymentLinkInput,
   parseCreatePaymentLinkInput,
 } from "./shared";
@@ -103,30 +105,45 @@ async function insertPaymentAttempt(
   status: PaymentAttemptStatus,
 ): Promise<PaymentAttemptRecord> {
   const now = new Date().toISOString();
-  const rows = await supabaseAdminRequest<PaymentAttemptRecord[]>(
-    "/payment_attempts",
-    {
-      method: "POST",
-      headers: {
-        Prefer: "return=representation",
+  try {
+    const rows = await supabaseAdminRequest<PaymentAttemptRecord[]>(
+      "/payment_attempts",
+      {
+        method: "POST",
+        headers: {
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({
+          payment_link_id: paymentLinkId,
+          payment_id: paymentId,
+          status,
+          created_at: now,
+          updated_at: now,
+        }),
       },
-      body: JSON.stringify({
-        payment_link_id: paymentLinkId,
-        payment_id: paymentId,
-        status,
-        created_at: now,
-        updated_at: now,
-      }),
-    },
-  );
+    );
 
-  const attempt = rows[0];
+    const attempt = rows[0];
 
-  if (!attempt) {
-    throw new Error("Supabase did not return the created payment attempt.");
+    if (!attempt) {
+      throw new Error("Supabase did not return the created payment attempt.");
+    }
+
+    return attempt;
+  } catch (error) {
+    if (isUniqueConflict(error)) {
+      const existingAttempt = await fetchPaymentAttempt(paymentLinkId, paymentId);
+
+      if (existingAttempt) {
+        return existingAttempt.status === "completed" ||
+          existingAttempt.status === status
+          ? existingAttempt
+          : updatePaymentAttempt(existingAttempt.id, status);
+      }
+    }
+
+    throw error;
   }
-
-  return attempt;
 }
 
 async function updatePaymentAttempt(
@@ -185,6 +202,106 @@ function normalizeConfirmInput(value: unknown): ConfirmPaymentLinkInput {
 
 function isUniqueConflict(error: unknown): boolean {
   return error instanceof SupabaseRequestError && error.status === 409;
+}
+
+function coerceRpcRows<T>(value: T | T[]): T[] {
+  return Array.isArray(value) ? value : [value];
+}
+
+async function finalizeSuccessfulPayment(
+  slug: string,
+  paymentId: string,
+  payerAddress: string | null,
+): Promise<PaymentLinkRecord> {
+  try {
+    const rows = coerceRpcRows(
+      await supabaseAdminRequest<PaymentLinkRecord[] | PaymentLinkRecord>(
+        "/rpc/finalize_payment_link_success",
+        {
+          method: "POST",
+          headers: {
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify({
+            p_paid_at: new Date().toISOString(),
+            p_payer_address: payerAddress,
+            p_payment_id: paymentId,
+            p_slug: slug,
+          }),
+        },
+      ),
+    );
+    const link = rows[0];
+
+    if (!link) {
+      throw new PaymentLinkServiceError("Unable to finalize payment link.", 500);
+    }
+
+    return link;
+  } catch (error) {
+    if (isUniqueConflict(error)) {
+      throw new PaymentLinkServiceError(
+        "This payment link has already been paid.",
+        409,
+      );
+    }
+
+    if (
+      error instanceof SupabaseRequestError &&
+      typeof error.payload === "object" &&
+      error.payload &&
+      "code" in error.payload &&
+      error.payload.code === "P0002"
+    ) {
+      throw new PaymentLinkServiceError("Payment link not found.", 404);
+    }
+
+    throw error;
+  }
+}
+
+function assertVerifiedPaymentMatchesLink(
+  link: PaymentLinkRecord,
+  paymentStatus: Awaited<ReturnType<typeof getPaymentStatus>>,
+): { payerAddress: string | null } {
+  if (!paymentStatus.recipient || !paymentStatus.amount) {
+    throw new PaymentLinkServiceError(
+      "Unable to verify completed payment details.",
+      502,
+    );
+  }
+
+  const verifiedRecipient = normalizeAddress(
+    paymentStatus.recipient,
+    "Verified payment recipient",
+  );
+  const expectedRecipient = normalizeAddress(
+    link.recipient_address,
+    "Recipient address",
+  );
+
+  if (verifiedRecipient !== expectedRecipient) {
+    throw new PaymentLinkServiceError(
+      "This payment was sent to a different recipient.",
+      409,
+    );
+  }
+
+  const verifiedAmount = normalizeUsdcAmount(paymentStatus.amount);
+  const expectedAmount = normalizeUsdcAmount(link.amount_usdc);
+
+  if (verifiedAmount !== expectedAmount) {
+    throw new PaymentLinkServiceError(
+      "This payment amount does not match the link amount.",
+      409,
+    );
+  }
+
+  return {
+    payerAddress: paymentStatus.sender
+      ? normalizeAddress(paymentStatus.sender, "Payer address")
+      : null,
+  };
 }
 
 export async function getPaymentLinkBySlug(
@@ -288,26 +405,19 @@ export async function confirmPaymentLink(
   }
 
   const existingAttempt = await fetchPaymentAttempt(link.id, input.paymentId);
-  const effectiveStatus =
+  const existingCompletedState =
     existingAttempt?.status === "completed" ||
-    (link.status === "paid" && link.payment_id === input.paymentId)
-      ? "completed"
-      : input.status;
+    (link.status === "paid" && link.payment_id === input.paymentId);
 
-  const attempt = existingAttempt
-    ? await updatePaymentAttempt(existingAttempt.id, effectiveStatus)
-    : await insertPaymentAttempt(link.id, input.paymentId, effectiveStatus);
-
-  if (effectiveStatus === "completed") {
-    const paidLink =
-      link.status === "paid" && link.payment_id === input.paymentId
-        ? link
-        : await updatePaymentLink(link.id, {
-            status: "paid",
-            paid_at: new Date().toISOString(),
-            payment_id: input.paymentId,
-            payer_address: input.payerAddress,
-          });
+  if (existingCompletedState) {
+    const paidLink = await finalizeSuccessfulPayment(
+      slug,
+      input.paymentId,
+      link.payer_address,
+    );
+    const attempt =
+      (await fetchPaymentAttempt(paidLink.id, input.paymentId)) ??
+      (await insertPaymentAttempt(paidLink.id, input.paymentId, "completed"));
 
     return {
       link: paidLink,
@@ -315,16 +425,69 @@ export async function confirmPaymentLink(
     };
   }
 
+  const paymentStatus = await getPaymentStatus({
+    id: input.paymentId,
+    testnet: false,
+  });
+  const effectiveStatus = paymentStatus.status;
+
+  if (effectiveStatus === "completed") {
+    try {
+      const { payerAddress } = assertVerifiedPaymentMatchesLink(link, paymentStatus);
+      const paidLink = await finalizeSuccessfulPayment(
+        slug,
+        input.paymentId,
+        payerAddress,
+      );
+      const attempt =
+        (await fetchPaymentAttempt(paidLink.id, input.paymentId)) ??
+        (await insertPaymentAttempt(paidLink.id, input.paymentId, "completed"));
+
+      return {
+        attempt,
+        link: paidLink,
+      };
+    } catch (error) {
+      const fallbackStatus: PaymentAttemptStatus =
+        error instanceof PaymentLinkServiceError && error.status === 502
+          ? "pending"
+          : "failed";
+      if (
+        !existingAttempt ||
+        existingAttempt.status !== fallbackStatus
+      ) {
+        if (existingAttempt) {
+          await updatePaymentAttempt(existingAttempt.id, fallbackStatus);
+        } else {
+          await insertPaymentAttempt(link.id, input.paymentId, fallbackStatus);
+        }
+      }
+
+      if (link.status === "active" && isPaymentLinkExpired(link)) {
+        await updatePaymentLink(link.id, { status: "expired" });
+      }
+
+      throw error;
+    }
+  }
+
+  const baseAttempt =
+    existingAttempt && existingAttempt.status === effectiveStatus
+      ? existingAttempt
+      : existingAttempt
+        ? await updatePaymentAttempt(existingAttempt.id, effectiveStatus)
+        : await insertPaymentAttempt(link.id, input.paymentId, effectiveStatus);
+
   if (link.status === "active" && isPaymentLinkExpired(link)) {
     return {
       link: await updatePaymentLink(link.id, { status: "expired" }),
-      attempt,
+      attempt: baseAttempt,
     };
   }
 
   return {
     link,
-    attempt,
+    attempt: baseAttempt,
   };
 }
 

@@ -1,0 +1,475 @@
+@import 'tailwindcss';
+@import './tokens/palette.css';
+@import './tokens/semantic.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme reference {
+  /* Semantic colors → Tailwind classes
+     Using "reference" so Tailwind recognises these for utility generation
+     without re-declaring them as CSS custom properties (semantic.css / palette.css
+     already define the actual values in :root). A plain @theme would output
+     self-referential vars that shadow the real ones. */
+
+  /* Text colors: text-text-primary, text-text-secondary, etc. */
+  --color-text-primary: var(--color-text-primary);
+  --color-text-primary-on-brand: var(--color-text-primary-on-brand);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-secondary-alt: var(--color-text-secondary-alt);
+  --color-text-secondary-hover: var(--color-text-secondary-hover);
+  --color-text-secondary-on-brand: var(--color-text-secondary-on-brand);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-tertiary-hover: var(--color-text-tertiary-hover);
+  --color-text-tertiary-on-brand: var(--color-text-tertiary-on-brand);
+  --color-text-quaternary: var(--color-text-quaternary);
+  --color-text-quaternary-on-brand: var(--color-text-quaternary-on-brand);
+  --color-text-white: var(--color-text-white);
+  --color-text-disabled: var(--color-text-disabled);
+  --color-text-placeholder: var(--color-text-placeholder);
+  --color-text-placeholder-subtle: var(--color-text-placeholder-subtle);
+  --color-text-brand-primary: var(--color-text-brand-primary);
+  --color-text-brand-secondary: var(--color-text-brand-secondary);
+  --color-text-brand-secondary-hover: var(--color-text-brand-secondary-hover);
+  --color-text-brand-tertiary: var(--color-text-brand-tertiary);
+  --color-text-brand-tertiary-alt: var(--color-text-brand-tertiary-alt);
+  --color-text-error-primary: var(--color-text-error-primary);
+  --color-text-error-primary-hover: var(--color-text-error-primary-hover);
+  --color-text-warning-primary: var(--color-text-warning-primary);
+  --color-text-success-primary: var(--color-text-success-primary);
+
+  /* Border colors: border-border-primary, border-border-secondary, etc. */
+  --color-border-primary: var(--color-border-primary);
+  --color-border-secondary: var(--color-border-secondary);
+  --color-border-secondary-alt: var(--color-border-secondary-alt);
+  --color-border-tertiary: var(--color-border-tertiary);
+  --color-border-disabled: var(--color-border-disabled);
+  --color-border-disabled-subtle: var(--color-border-disabled-subtle);
+  --color-border-brand: var(--color-border-brand);
+  --color-border-brand-alt: var(--color-border-brand-alt);
+  --color-border-error: var(--color-border-error);
+  --color-border-error-subtle: var(--color-border-error-subtle);
+
+  /* Foreground colors: text-fg-primary, bg-fg-primary, etc. */
+  --color-fg-primary: var(--color-fg-primary);
+  --color-fg-secondary: var(--color-fg-secondary);
+  --color-fg-secondary-hover: var(--color-fg-secondary-hover);
+  --color-fg-tertiary: var(--color-fg-tertiary);
+  --color-fg-tertiary-hover: var(--color-fg-tertiary-hover);
+  --color-fg-quaternary: var(--color-fg-quaternary);
+  --color-fg-quaternary-hover: var(--color-fg-quaternary-hover);
+  --color-fg-white: var(--color-fg-white);
+  --color-fg-disabled: var(--color-fg-disabled);
+  --color-fg-disabled-subtle: var(--color-fg-disabled-subtle);
+  --color-fg-brand-primary: var(--color-fg-brand-primary);
+  --color-fg-brand-primary-alt: var(--color-fg-brand-primary-alt);
+  --color-fg-brand-secondary: var(--color-fg-brand-secondary);
+  --color-fg-brand-secondary-alt: var(--color-fg-brand-secondary-alt);
+  --color-fg-brand-secondary-hover: var(--color-fg-brand-secondary-hover);
+  --color-fg-error-primary: var(--color-fg-error-primary);
+  --color-fg-error-secondary: var(--color-fg-error-secondary);
+  --color-fg-warning-primary: var(--color-fg-warning-primary);
+  --color-fg-warning-secondary: var(--color-fg-warning-secondary);
+  --color-fg-success-primary: var(--color-fg-success-primary);
+  --color-fg-success-secondary: var(--color-fg-success-secondary);
+
+  /* Background colors: bg-bg-primary, bg-bg-secondary, etc. */
+  --color-bg-primary: var(--color-bg-primary);
+  --color-bg-primary-alt: var(--color-bg-primary-alt);
+  --color-bg-primary-hover: var(--color-bg-primary-hover);
+  --color-bg-primary-solid: var(--color-bg-primary-solid);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-bg-secondary-alt: var(--color-bg-secondary-alt);
+  --color-bg-secondary-hover: var(--color-bg-secondary-hover);
+  --color-bg-secondary-subtle: var(--color-bg-secondary-subtle);
+  --color-bg-secondary-solid: var(--color-bg-secondary-solid);
+  --color-bg-tertiary: var(--color-bg-tertiary);
+  --color-bg-quaternary: var(--color-bg-quaternary);
+  --color-bg-active: var(--color-bg-active);
+  --color-bg-disabled: var(--color-bg-disabled);
+  --color-bg-disabled-subtle: var(--color-bg-disabled-subtle);
+  --color-bg-overlay: var(--color-bg-overlay);
+  --color-bg-overlay-alt: var(--color-bg-overlay-alt);
+  --color-bg-brand-primary: var(--color-bg-brand-primary);
+  --color-bg-brand-primary-alt: var(--color-bg-brand-primary-alt);
+  --color-bg-brand-secondary: var(--color-bg-brand-secondary);
+  --color-bg-brand-solid: var(--color-bg-brand-solid);
+  --color-bg-brand-solid-alt: var(--color-bg-brand-solid-alt);
+  --color-bg-brand-solid-hover: var(--color-bg-brand-solid-hover);
+  --color-bg-brand-section: var(--color-bg-brand-section);
+  --color-bg-brand-section-subtle: var(--color-bg-brand-section-subtle);
+  --color-bg-error-primary: var(--color-bg-error-primary);
+  --color-bg-error-secondary: var(--color-bg-error-secondary);
+  --color-bg-error-solid: var(--color-bg-error-solid);
+  --color-bg-error-solid-hover: var(--color-bg-error-solid-hover);
+  --color-bg-warning-primary: var(--color-bg-warning-primary);
+  --color-bg-warning-secondary: var(--color-bg-warning-secondary);
+  --color-bg-warning-solid: var(--color-bg-warning-solid);
+  --color-bg-success-primary: var(--color-bg-success-primary);
+  --color-bg-success-secondary: var(--color-bg-success-secondary);
+  --color-bg-success-solid: var(--color-bg-success-solid);
+
+  /* Focus ring */
+  --color-focus-ring: var(--color-focus-ring);
+  --color-focus-ring-error: var(--color-focus-ring-error);
+
+  /* Brand palette (direct access) */
+  --color-brand-25: var(--brand-25);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+  --color-utility-brand-200-alt: var(--color-utility-brand-200-alt);
+
+  /* Gray palette (direct access) */
+  --color-gray-25: var(--gray-25);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+  --color-gray-950: var(--gray-950);
+
+  /* Error palette */
+  --color-error-50: var(--error-50);
+  --color-error-100: var(--error-100);
+  --color-error-200: var(--error-200);
+  --color-error-300: var(--error-300);
+  --color-error-400: var(--error-400);
+  --color-error-500: var(--error-500);
+  --color-error-600: var(--error-600);
+  --color-error-700: var(--error-700);
+
+  /* Warning palette */
+  --color-warning-50: var(--warning-50);
+  --color-warning-100: var(--warning-100);
+  --color-warning-200: var(--warning-200);
+  --color-warning-300: var(--warning-300);
+  --color-warning-400: var(--warning-400);
+  --color-warning-500: var(--warning-500);
+  --color-warning-600: var(--warning-600);
+  --color-warning-700: var(--warning-700);
+
+  /* Success palette */
+  --color-success-50: var(--success-50);
+  --color-success-100: var(--success-100);
+  --color-success-200: var(--success-200);
+  --color-success-300: var(--success-300);
+  --color-success-400: var(--success-400);
+  --color-success-500: var(--success-500);
+  --color-success-600: var(--success-600);
+  --color-success-700: var(--success-700);
+
+  /* Component: Footer */
+  --color-footer-button-fg: var(--color-footer-button-fg);
+  --color-footer-button-fg-hover: var(--color-footer-button-fg-hover);
+
+  /* Component: App Store */
+  --color-app-store-badge-border: var(--color-app-store-badge-border);
+
+  /* Font families */
+  --font-display: var(--font-family-display);
+  --font-subtitle: var(--font-family-subtitle);
+  --font-body: var(--font-family-body);
+
+  /* Font sizes */
+  --text-xs: var(--font-size-text-xs);
+  --text-xs--line-height: var(--line-height-text-xs);
+  --text-sm: var(--font-size-text-sm);
+  --text-sm--line-height: var(--line-height-text-sm);
+  --text-md: var(--font-size-text-md);
+  --text-md--line-height: var(--line-height-text-md);
+  --text-lg: var(--font-size-text-lg);
+  --text-lg--line-height: var(--line-height-text-lg);
+  --text-xl: var(--font-size-text-xl);
+  --text-xl--line-height: var(--line-height-text-xl);
+  --text-display-xs: var(--font-size-display-xs);
+  --text-display-xs--line-height: var(--line-height-display-xs);
+  --text-display-sm: var(--font-size-display-sm);
+  --text-display-sm--line-height: var(--line-height-display-sm);
+  --text-display-md: var(--font-size-display-md);
+  --text-display-md--line-height: var(--line-height-display-md);
+  --text-display-lg: var(--font-size-display-lg);
+  --text-display-lg--line-height: var(--line-height-display-lg);
+  --text-display-xl: var(--font-size-display-xl);
+  --text-display-xl--line-height: var(--line-height-display-xl);
+  --text-display-2xl: var(--font-size-display-2xl);
+  --text-display-2xl--line-height: var(--line-height-display-2xl);
+
+  /* Spacing */
+  --spacing-0: var(--spacing-none);
+  --spacing-0_5: var(--spacing-xxs);
+  --spacing-1: var(--spacing-xs);
+  --spacing-1_5: var(--spacing-sm);
+  --spacing-2: var(--spacing-md);
+  --spacing-3: var(--spacing-lg);
+  --spacing-4: var(--spacing-xl);
+  --spacing-5: var(--spacing-2xl);
+  --spacing-6: var(--spacing-3xl);
+  --spacing-8: var(--spacing-4xl);
+  --spacing-10: var(--spacing-5xl);
+  --spacing-12: var(--spacing-6xl);
+  --spacing-16: var(--spacing-7xl);
+  --spacing-20: var(--spacing-8xl);
+  --spacing-24: var(--spacing-9xl);
+  --spacing-32: var(--spacing-10xl);
+  --spacing-40: var(--spacing-11xl);
+
+  /* Border radius (from spacing.css) */
+  --radius-none: var(--radius-none);
+  --radius-xxs: var(--radius-xxs);
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-3xl: var(--radius-3xl);
+  --radius-4xl: var(--radius-4xl);
+  --radius-full: var(--radius-full);
+
+  /* Container */
+  --container-max-width: var(--container-max-width-desktop);
+}
+
+/* Base styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-family-body);
+  font-weight: var(--font-weight-regular);
+  min-height: 100dvh;
+}
+
+/* Layout utilities */
+.container-main {
+  width: 100%;
+  max-width: var(--container-max-width-desktop);
+  margin-inline: auto;
+  padding-inline: var(--container-padding-mobile);
+}
+
+@media (min-width: 768px) {
+  .container-main {
+    padding-inline: var(--container-padding-desktop);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border-secondary outline-focus-ring/50;
+  }
+}
+
+/* ============================================
+   Scroll-triggered animations (pure CSS)
+   Uses animation-timeline: view() — no JS needed.
+   Degrades gracefully: unsupported browsers show content immediately.
+   ============================================ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-left {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-right {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes blur-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Base class: enables scroll-triggered animation */
+.animate-on-scroll {
+  animation-timeline: view();
+  animation-range: entry 0% entry 30%;
+  animation-fill-mode: both;
+}
+
+/* Animation variants — combine with .animate-on-scroll */
+.animate-fade-in {
+  animation-name: fade-in;
+  animation-duration: 1ms; /* required for animation-timeline */
+}
+
+.animate-fade-up {
+  animation-name: fade-up;
+  animation-duration: 1ms;
+}
+
+.animate-fade-down {
+  animation-name: fade-down;
+  animation-duration: 1ms;
+}
+
+.animate-fade-left {
+  animation-name: fade-left;
+  animation-duration: 1ms;
+}
+
+.animate-fade-right {
+  animation-name: fade-right;
+  animation-duration: 1ms;
+}
+
+.animate-scale-in {
+  animation-name: scale-in;
+  animation-duration: 1ms;
+}
+
+.animate-blur-in {
+  animation-name: blur-in;
+  animation-duration: 1ms;
+}
+
+/* Animation range modifiers (how much of the element must enter the viewport) */
+.animate-range-sm {
+  animation-range: entry 0% entry 15%;
+}
+
+.animate-range-lg {
+  animation-range: entry 0% entry 50%;
+}
+
+/* Stagger delays for child elements */
+.animate-delay-1 {
+  animation-delay: 100ms;
+}
+
+.animate-delay-2 {
+  animation-delay: 200ms;
+}
+
+.animate-delay-3 {
+  animation-delay: 300ms;
+}
+
+.animate-delay-4 {
+  animation-delay: 400ms;
+}
+
+.animate-delay-5 {
+  animation-delay: 500ms;
+}
+
+/* Page-load animation (no scroll trigger, plays once on mount) */
+.animate-on-load {
+  animation-fill-mode: both;
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Target highlight: flash a focus ring when navigated via #hash */
+@keyframes target-highlight {
+  0%,
+  70% {
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+  }
+  100% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+.zoom-section-highlight {
+  border-radius: var(--radius-lg);
+}
+
+.zoom-section-highlight:target {
+  animation: target-highlight 1.2s ease-out forwards;
+}
+
+/* Reduced motion: respect user preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-on-scroll,
+  .animate-on-load {
+    animation: none !important;
+  }
+}
