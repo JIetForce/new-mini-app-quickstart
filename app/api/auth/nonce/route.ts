@@ -13,21 +13,23 @@ export async function GET() {
 
     return NextResponse.json({ nonce });
   } catch (error) {
+    console.error("GET /api/auth/nonce failed", error);
     const authError = mapSupabaseAuthError(error);
 
     if (authError) {
       return NextResponse.json(
-        { message: authError.message },
+        {
+          code: "wallet_auth_nonce_failed",
+          message: "Unable to initialize wallet sign-in.",
+        },
         { status: authError.status },
       );
     }
 
     return NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to create wallet auth nonce.",
+        code: "wallet_auth_nonce_failed",
+        message: "Unable to initialize wallet sign-in.",
       },
       { status: 500 },
     );

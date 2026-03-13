@@ -45,6 +45,20 @@ async function parseResponseBody(
   }
 }
 
+async function parseSuccessBody<T>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text) {
+    return null as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as T;
+  }
+}
+
 export async function supabaseAdminRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -70,9 +84,5 @@ export async function supabaseAdminRequest<T>(
     throw new SupabaseRequestError(message, response.status, payload);
   }
 
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  return (await response.json()) as T;
+  return parseSuccessBody<T>(response);
 }

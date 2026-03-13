@@ -27,6 +27,27 @@ type RequestableProvider = {
   }) => Promise<unknown>;
 };
 
+type AuthApiErrorPayload = {
+  code?: string;
+  message?: string;
+};
+
+async function readJsonResponse<T>(
+  response: Response,
+): Promise<T & AuthApiErrorPayload> {
+  const text = await response.text();
+
+  if (!text) {
+    return {} as T & AuthApiErrorPayload;
+  }
+
+  try {
+    return JSON.parse(text) as T & AuthApiErrorPayload;
+  } catch {
+    return {} as T & AuthApiErrorPayload;
+  }
+}
+
 function isMethodNotSupported(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -106,9 +127,7 @@ export function useWalletSession() {
     const response = await fetch("/api/auth/nonce", {
       cache: "no-store",
     });
-    const payload = (await response.json()) as WalletNonceResponse & {
-      message?: string;
-    };
+    const payload = await readJsonResponse<WalletNonceResponse>(response);
 
     if (!response.ok || !payload.nonce) {
       throw new Error(payload.message || "Unable to start wallet sign-in.");
@@ -122,9 +141,7 @@ export function useWalletSession() {
     const response = await fetch("/api/auth/session", {
       cache: "no-store",
     });
-    const payload = (await response.json()) as WalletSessionResponse & {
-      message?: string;
-    };
+    const payload = await readJsonResponse<WalletSessionResponse>(response);
 
     if (!response.ok) {
       throw new Error(payload.message || "Unable to read wallet session.");
@@ -142,12 +159,10 @@ export function useWalletSession() {
           fetch("/api/auth/session", { cache: "no-store" }),
           fetch("/api/auth/nonce", { cache: "no-store" }),
         ]);
-        const sessionPayload = (await sessionResponse.json()) as WalletSessionResponse & {
-          message?: string;
-        };
-        const noncePayload = (await nonceResponse.json()) as WalletNonceResponse & {
-          message?: string;
-        };
+        const sessionPayload =
+          await readJsonResponse<WalletSessionResponse>(sessionResponse);
+        const noncePayload =
+          await readJsonResponse<WalletNonceResponse>(nonceResponse);
 
         if (!sessionResponse.ok) {
           throw new Error(
@@ -300,9 +315,7 @@ export function useWalletSession() {
         },
         method: "POST",
       });
-      const payload = (await response.json()) as WalletSessionResponse & {
-        message?: string;
-      };
+      const payload = await readJsonResponse<WalletSessionResponse>(response);
 
       if (!response.ok || !payload.session) {
         throw new Error(payload.message || "Unable to verify wallet sign-in.");
