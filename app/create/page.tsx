@@ -120,8 +120,8 @@ export default function CreatePage() {
           ) : sessionMismatch ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm leading-6 text-text-secondary">
-                Connected wallet and signed-in wallet do not match. Re-authenticate
-                before creating links.
+                Connected Base Account and ownership session do not match.
+                Confirm ownership again before creating links.
               </p>
               <div className="flex flex-wrap gap-3 text-sm text-text-tertiary">
                 <span className="[overflow-wrap:anywhere]">
@@ -138,7 +138,7 @@ export default function CreatePage() {
                 size="lg"
                 type="button"
               >
-                {isAuthenticating ? "Signing in..." : "Sign in again"}
+                {isAuthenticating ? "Confirming..." : "Confirm ownership again"}
               </Button>
             </div>
           ) : session ? (
@@ -153,7 +153,9 @@ export default function CreatePage() {
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-sm leading-6 text-text-secondary">
-                Sign in with your wallet before creating owner-scoped payment links.
+                {address
+                  ? "Your recipient is already auto-filled from the connected Base Account. Confirm ownership to create a secure session before creating links."
+                  : "Create a secure ownership session with your wallet before creating links. In Base Preview or the Base app, your Base Account can still auto-fill the recipient once available."}
               </p>
               <Button
                 className="h-11 rounded-full px-5"
@@ -162,7 +164,7 @@ export default function CreatePage() {
                 size="lg"
                 type="button"
               >
-                {isAuthenticating ? "Signing in..." : "Sign in with wallet"}
+                {isAuthenticating ? "Confirming..." : "Confirm ownership"}
               </Button>
             </div>
           )}

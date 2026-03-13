@@ -119,6 +119,13 @@ export function useWalletSession() {
     return address.toLowerCase() !== session.address.toLowerCase();
   }, [address, session]);
 
+  function logAuthEvent(
+    event: string,
+    details?: Record<string, unknown>,
+  ) {
+    console.info("[wallet-session]", event, details ?? {});
+  }
+
   async function fetchNonce(force = false): Promise<string> {
     if (!force && nonceRef.current) {
       return nonceRef.current;
@@ -200,23 +207,43 @@ export function useWalletSession() {
     };
   }, []);
 
-  async function getActiveConnector() {
-    if (connector) {
-      return connector;
+  async function getAuthenticationConnector() {
+    const baseAccountConnector = connectors.find(
+      (item) => item.id === "baseAccount",
+    );
+
+    if (baseAccountConnector) {
+      logAuthEvent("using_auth_connector", {
+        connectorId: baseAccountConnector.id,
+        reason: "base-account-docs-path",
+      });
+
+      if (connector?.id !== baseAccountConnector.id) {
+        await connectAsync({ connector: baseAccountConnector });
+      }
+
+      return baseAccountConnector;
     }
 
-    const preferredConnector =
+    const fallbackConnector =
+      connector ??
       connectors.find((item) => item.id === "farcaster") ??
-      connectors.find((item) => item.id === "baseAccount") ??
       connectors[0];
 
-    if (!preferredConnector) {
+    if (!fallbackConnector) {
       throw new Error("No wallet connector is available.");
     }
 
-    await connectAsync({ connector: preferredConnector });
+    logAuthEvent("using_auth_connector", {
+      connectorId: fallbackConnector.id,
+      reason: "fallback-no-base-account-connector",
+    });
 
-    return preferredConnector;
+    if (connector?.id !== fallbackConnector.id) {
+      await connectAsync({ connector: fallbackConnector });
+    }
+
+    return fallbackConnector;
   }
 
   async function authenticate() {
@@ -224,7 +251,7 @@ export function useWalletSession() {
     setError("");
 
     try {
-      const activeConnector = await getActiveConnector();
+      const activeConnector = await getAuthenticationConnector();
       const provider = (await activeConnector.getProvider()) as
         | RequestableProvider
         | undefined;
@@ -234,6 +261,9 @@ export function useWalletSession() {
       }
 
       const nonce = await fetchNonce(true);
+      logAuthEvent("auth_provider_ready", {
+        connectorId: activeConnector.id,
+      });
 
       try {
         await provider.request({
@@ -247,32 +277,57 @@ export function useWalletSession() {
       }
 
       let signIn = extractWalletConnectSignIn(
-        await provider.request({
-          method: "wallet_connect",
-          params: [
-            {
-              version: "1",
-              capabilities: {
-                signInWithEthereum: {
-                  chainId: PAY_LINK_CHAIN_HEX,
-                  domain: window.location.host,
-                  expirationTime: new Date(
-                    Date.now() + 10 * 60 * 1000,
-                  ).toISOString(),
-                  issuedAt: new Date().toISOString(),
-                  nonce,
-                  scheme: window.location.protocol.replace(":", ""),
-                  statement: "Sign in to Pay Link",
-                  uri: window.location.origin,
+        await (async () => {
+          logAuthEvent("wallet_connect_attempt", {
+            connectorId: activeConnector.id,
+          });
+
+          try {
+            return await provider.request({
+              method: "wallet_connect",
+              params: [
+                {
                   version: "1",
+                  capabilities: {
+                    signInWithEthereum: {
+                      chainId: PAY_LINK_CHAIN_HEX,
+                      domain: window.location.host,
+                      expirationTime: new Date(
+                        Date.now() + 10 * 60 * 1000,
+                      ).toISOString(),
+                      issuedAt: new Date().toISOString(),
+                      nonce,
+                      scheme: window.location.protocol.replace(":", ""),
+                      statement: "Sign in to Pay Link",
+                      uri: window.location.origin,
+                      version: "1",
+                    },
+                  },
                 },
-              },
-            },
-          ],
-        }),
+              ],
+            });
+          } catch (walletConnectError) {
+            if (!isMethodNotSupported(walletConnectError)) {
+              throw walletConnectError;
+            }
+
+            logAuthEvent("wallet_connect_unsupported", {
+              connectorId: activeConnector.id,
+              message:
+                walletConnectError instanceof Error
+                  ? walletConnectError.message
+                  : "wallet_connect unsupported",
+            });
+
+            return null;
+          }
+        })(),
       );
 
       if (!signIn) {
+        logAuthEvent("siwe_fallback_personal_sign", {
+          connectorId: activeConnector.id,
+        });
         const accounts = (await provider.request({
           method: "eth_requestAccounts",
         })) as string[];
@@ -326,10 +381,15 @@ export function useWalletSession() {
       await fetchNonce(true);
     } catch (authError) {
       nonceRef.current = null;
-      setError(
+      const finalMessage =
         authError instanceof Error
           ? authError.message
-          : "Unable to sign in with wallet.",
+          : "Unable to sign in with wallet.";
+      logAuthEvent("auth_failed", {
+        message: finalMessage,
+      });
+      setError(
+        finalMessage,
       );
     } finally {
       setIsAuthenticating(false);
