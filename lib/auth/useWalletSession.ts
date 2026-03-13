@@ -2,30 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createSiweMessage } from "viem/siwe";
-import { stringToHex } from "viem";
-import { useAccount, useConnect } from "wagmi";
-
 import {
-  PAY_LINK_CHAIN_HEX,
+  useAccount,
+  useChainId,
+  useConnect,
+  useSignMessage,
+} from "wagmi";
+
+import { useMiniApp } from "@/app/providers/MiniAppProvider";
+import {
   PAY_LINK_CHAIN_ID,
   type WalletNonceResponse,
   type WalletSession,
   type WalletSessionResponse,
   normalizeWalletAddress,
 } from "./shared";
-
-type WalletConnectSignInResult = {
-  address: string;
-  message: string;
-  signature: `0x${string}`;
-};
-
-type RequestableProvider = {
-  request: (args: {
-    method: string;
-    params?: unknown[];
-  }) => Promise<unknown>;
-};
 
 type AuthApiErrorPayload = {
   code?: string;
@@ -48,68 +39,18 @@ async function readJsonResponse<T>(
   }
 }
 
-function isMethodNotSupported(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  return /method[_ ]not[_ ]supported|unsupported|wallet_connect/i.test(
-    error.message,
-  );
-}
-
-function extractWalletConnectSignIn(
-  value: unknown,
-): WalletConnectSignInResult | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const payload = value as {
-    accounts?: Array<{
-      address?: string;
-      capabilities?: {
-        signInWithEthereum?:
-          | { message?: string; signature?: `0x${string}` }
-          | { code?: number; message?: string };
-      };
-    }>;
-  };
-
-  const account = payload.accounts?.[0];
-  const capability = account?.capabilities?.signInWithEthereum;
-
-  if (!capability || typeof capability !== "object" || capability === null) {
-    return null;
-  }
-
-  if (!("message" in capability) || !("signature" in capability)) {
-    return null;
-  }
-
-  if (
-    typeof account?.address !== "string" ||
-    typeof capability.message !== "string" ||
-    typeof capability.signature !== "string"
-  ) {
-    return null;
-  }
-
-  return {
-    address: account.address,
-    message: capability.message,
-    signature: capability.signature,
-  };
-}
-
 export function useWalletSession() {
   const { address, connector } = useAccount();
+  const chainId = useChainId();
   const { connectAsync, connectors } = useConnect();
+  const { signMessageAsync } = useSignMessage();
+  const { context, isReady: isMiniAppReady } = useMiniApp();
   const [session, setSession] = useState<WalletSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState("");
   const nonceRef = useRef<string | null>(null);
+  const isBaseAppPath = isMiniAppReady || Boolean(context);
 
   const sessionMismatch = useMemo(() => {
     if (!address || !session) {
@@ -207,26 +148,24 @@ export function useWalletSession() {
     };
   }, []);
 
-  async function getAuthenticationConnector() {
-    const baseAccountConnector = connectors.find(
-      (item) => item.id === "baseAccount",
-    );
-
-    if (baseAccountConnector) {
-      logAuthEvent("using_auth_connector", {
-        connectorId: baseAccountConnector.id,
-        reason: "base-account-docs-path",
+  async function resolveAuthenticationWallet() {
+    if (address) {
+      const normalizedAddress = normalizeWalletAddress(address, "Wallet address");
+      logAuthEvent("using_connected_wallet", {
+        connectorId: connector?.id ?? null,
+        currentChainId: chainId,
+        isBaseAppPath,
+        wagmiAddress: normalizedAddress,
       });
 
-      if (connector?.id !== baseAccountConnector.id) {
-        await connectAsync({ connector: baseAccountConnector });
-      }
-
-      return baseAccountConnector;
+      return {
+        walletAddress: normalizedAddress,
+        activeConnector: connector ?? undefined,
+      };
     }
 
     const fallbackConnector =
-      connector ??
+      connectors.find((item) => item.id === "baseAccount") ??
       connectors.find((item) => item.id === "farcaster") ??
       connectors[0];
 
@@ -234,16 +173,26 @@ export function useWalletSession() {
       throw new Error("No wallet connector is available.");
     }
 
-    logAuthEvent("using_auth_connector", {
+    logAuthEvent("connecting_wallet_for_auth", {
       connectorId: fallbackConnector.id,
-      reason: "fallback-no-base-account-connector",
+      currentChainId: chainId,
+      isBaseAppPath,
+      wagmiAddress: null,
     });
 
-    if (connector?.id !== fallbackConnector.id) {
-      await connectAsync({ connector: fallbackConnector });
+    const result = await connectAsync({ connector: fallbackConnector });
+    const connectedAddress = result.accounts?.[0]
+      ? normalizeWalletAddress(result.accounts[0], "Wallet address")
+      : null;
+
+    if (!connectedAddress) {
+      throw new Error("Wallet address is unavailable.");
     }
 
-    return fallbackConnector;
+    return {
+      walletAddress: connectedAddress,
+      activeConnector: fallbackConnector,
+    };
   }
 
   async function authenticate() {
@@ -251,120 +200,48 @@ export function useWalletSession() {
     setError("");
 
     try {
-      const activeConnector = await getAuthenticationConnector();
-      const provider = (await activeConnector.getProvider()) as
-        | RequestableProvider
-        | undefined;
-
-      if (!provider?.request) {
-        throw new Error("Wallet provider is not available.");
-      }
-
-      const nonce = await fetchNonce(true);
-      logAuthEvent("auth_provider_ready", {
-        connectorId: activeConnector.id,
+      logAuthEvent("auth_start", {
+        connectorId: connector?.id ?? null,
+        currentChainId: chainId,
+        isBaseAppPath,
+        wagmiAddress: address ?? null,
       });
 
-      try {
-        await provider.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: PAY_LINK_CHAIN_HEX }],
-        });
-      } catch (switchError) {
-        if (!isMethodNotSupported(switchError)) {
-          throw switchError;
-        }
-      }
+      const { activeConnector, walletAddress } =
+        await resolveAuthenticationWallet();
+      const nonce = await fetchNonce(true);
+      const message = createSiweMessage({
+        address: walletAddress,
+        chainId: PAY_LINK_CHAIN_ID,
+        domain: window.location.host,
+        expirationTime: new Date(Date.now() + 10 * 60 * 1000),
+        issuedAt: new Date(),
+        nonce,
+        scheme: window.location.protocol.replace(":", ""),
+        statement: "Sign in to Pay Link",
+        uri: window.location.origin,
+        version: "1",
+      });
 
-      let signIn = extractWalletConnectSignIn(
-        await (async () => {
-          logAuthEvent("wallet_connect_attempt", {
-            connectorId: activeConnector.id,
-          });
+      logAuthEvent("siwe_signing", {
+        connectorId: activeConnector?.id ?? connector?.id ?? null,
+        currentChainId: chainId,
+        isBaseAppPath,
+        signingMethod: "wagmi_signMessage",
+        wagmiAddress: walletAddress,
+      });
+      const signature = await signMessageAsync({
+        account: walletAddress,
+        connector: activeConnector,
+        message,
+      });
 
-          try {
-            return await provider.request({
-              method: "wallet_connect",
-              params: [
-                {
-                  version: "1",
-                  capabilities: {
-                    signInWithEthereum: {
-                      chainId: PAY_LINK_CHAIN_HEX,
-                      domain: window.location.host,
-                      expirationTime: new Date(
-                        Date.now() + 10 * 60 * 1000,
-                      ).toISOString(),
-                      issuedAt: new Date().toISOString(),
-                      nonce,
-                      scheme: window.location.protocol.replace(":", ""),
-                      statement: "Sign in to Pay Link",
-                      uri: window.location.origin,
-                      version: "1",
-                    },
-                  },
-                },
-              ],
-            });
-          } catch (walletConnectError) {
-            if (!isMethodNotSupported(walletConnectError)) {
-              throw walletConnectError;
-            }
-
-            logAuthEvent("wallet_connect_unsupported", {
-              connectorId: activeConnector.id,
-              message:
-                walletConnectError instanceof Error
-                  ? walletConnectError.message
-                  : "wallet_connect unsupported",
-            });
-
-            return null;
-          }
-        })(),
-      );
-
-      if (!signIn) {
-        logAuthEvent("siwe_fallback_personal_sign", {
-          connectorId: activeConnector.id,
-        });
-        const accounts = (await provider.request({
-          method: "eth_requestAccounts",
-        })) as string[];
-        const walletAddress = accounts[0]
-          ? normalizeWalletAddress(accounts[0], "Wallet address")
-          : null;
-
-        if (!walletAddress) {
-          throw new Error("Wallet address is unavailable.");
-        }
-
-        const message = createSiweMessage({
-          address: walletAddress,
-          chainId: PAY_LINK_CHAIN_ID,
-          domain: window.location.host,
-          expirationTime: new Date(Date.now() + 10 * 60 * 1000),
-          issuedAt: new Date(),
-          nonce,
-          scheme: window.location.protocol.replace(":", ""),
-          statement: "Sign in to Pay Link",
-          uri: window.location.origin,
-          version: "1",
-        });
-        const signature = (await provider.request({
-          method: "personal_sign",
-          params: [stringToHex(message), walletAddress],
-        })) as `0x${string}`;
-
-        signIn = {
+      const response = await fetch("/api/auth/verify", {
+        body: JSON.stringify({
           address: walletAddress,
           message,
           signature,
-        };
-      }
-
-      const response = await fetch("/api/auth/verify", {
-        body: JSON.stringify(signIn),
+        }),
         headers: {
           "Content-Type": "application/json",
         },
@@ -386,7 +263,11 @@ export function useWalletSession() {
           ? authError.message
           : "Unable to sign in with wallet.";
       logAuthEvent("auth_failed", {
+        currentChainId: chainId,
+        isBaseAppPath,
         message: finalMessage,
+        signingMethod: "wagmi_signMessage",
+        wagmiAddress: address ?? null,
       });
       setError(
         finalMessage,
