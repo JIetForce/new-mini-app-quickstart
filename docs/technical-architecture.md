@@ -261,6 +261,7 @@ Current distribution-facing implementation:
 - `/` is the intended discovery/share entry page
 - `/create`, `/my-links`, and `/r/[slug]` set `robots: noindex`
 - `public/distribution/` is expected to contain current live-product captures/assets rather than stale design placeholders
+- paid and created timestamps are rendered in a deterministic UTC format to avoid SSR/client hydration mismatches
 
 Current manifest details:
 - `canonicalDomain` is derived from the canonical app URL host
@@ -268,6 +269,9 @@ Current manifest details:
 - `requiredCapabilities` lists only capabilities currently used by the app shell
 - `baseBuilder.ownerAddress` is optional and env-driven
 - `webhookUrl` is intentionally omitted because the repo has no webhook route or notification flow
+- `iconUrl` points to a 1024x1024 PNG
+- `splashImageUrl` points to a lightweight 200x200 PNG
+- `screenshotUrls` point to portrait 1284x2778 live-product captures
 
 Current page metadata details:
 - root layout publishes canonical Open Graph / Twitter metadata
@@ -311,7 +315,7 @@ The base table creation for `payment_links` and `payment_attempts` is assumed to
 
 ## Current Limitations and Technical Debt
 
-- `@farcaster/quick-auth` is installed but not used in the secure auth path
+- the app does not use `@farcaster/quick-auth` in the secure auth path and no longer carries it as a direct root dependency
 - `canceled` exists in the status model, but there is no implemented cancel action
 - there is no explicit logout route yet
 - the project still relies on production DB state for the original base tables because the repo only contains additive migrations for later changes

@@ -5,11 +5,17 @@ This file lists the official references that matter for the current codebase. Ke
 ## Base App / Mini App
 
 - [Migrate to a Standard Web App](https://docs.base.org/mini-apps/quickstart/migrate-to-standard-web-app)
-  - The most important Base direction for this repo. It explains the move away from Farcaster-specific auth toward wagmi + viem + wallet-based identity.
+  - The most important Base direction for this repo. It explains the move away from Farcaster-specific auth toward wagmi + viem + wallet-based identity while keeping the app compatible with Base App distribution requirements.
 - [Publish Your Mini App](https://docs.base.org/mini-apps/guides/publish)
   - Reference for manifest fields, discovery metadata, and the publishing checklist relevant to this repo.
 - [Preview Your Mini App](https://docs.base.org/mini-apps/guides/preview)
   - Relevant for validating the manifest, metadata, and embedded app behavior against a public HTTPS URL before distribution.
+- [Mini App Context](https://docs.base.org/mini-apps/build-with-minikit/context)
+  - Relevant because the repo still uses Mini App context only for embedded UX concerns such as readiness and display metadata, not for ownership authority.
+- [Optimize Onboarding](https://docs.base.org/base-account/guides/optimize-onboarding)
+  - Useful when adjusting embedded wallet UX and understanding the current Base Account onboarding path in the Base App.
+- [Technical Guidelines](https://docs.base.org/mini-apps/featured-guidelines/technical-guidelines)
+  - Relevant for distribution asset quality, screenshot expectations, and general featured/discovery readiness.
 - [Authenticate Users](https://docs.base.org/base-account/guides/authenticate-users)
   - Reference for the server-issued nonce + SIWE verification model used here.
 - [Base Pay in Wagmi Apps](https://docs.base.org/base-account/framework-integrations/wagmi/base-pay)

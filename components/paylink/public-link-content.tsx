@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatUtcTimestamp } from "@/lib/format/date";
 import { type IdentityPresentation } from "@/lib/identity/display";
 import {
   PAYMENT_LINK_STATUS,
@@ -43,14 +44,6 @@ function formatAmount(amountUsdc: string): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 6,
   }).format(Number(amountUsdc));
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleString();
 }
 
 function formatRelativeExpiry(value: string | null): string {
@@ -244,7 +237,9 @@ export function PublicLinkPaidState({
                 </>
               ) : null}
               {link.paidAt ? (
-                <DetailRow label="Paid at">{formatDate(link.paidAt)}</DetailRow>
+                <DetailRow label="Paid at">
+                  {formatUtcTimestamp(link.paidAt)}
+                </DetailRow>
               ) : null}
               {txUrl ? (
                 <DetailRow label="Transaction">
@@ -345,7 +340,9 @@ export function PublicLinkPaidState({
               </>
             ) : null}
             {link.paidAt ? (
-              <DetailRow label="Paid at">{formatDate(link.paidAt)}</DetailRow>
+              <DetailRow label="Paid at">
+                {formatUtcTimestamp(link.paidAt)}
+              </DetailRow>
             ) : null}
             {txUrl ? (
               <DetailRow label="Transaction">
@@ -429,7 +426,9 @@ export function PublicLinkPaidState({
             </>
           ) : null}
           {link.paidAt ? (
-            <DetailRow label="Paid at">{formatDate(link.paidAt)}</DetailRow>
+            <DetailRow label="Paid at">
+              {formatUtcTimestamp(link.paidAt)}
+            </DetailRow>
           ) : null}
           {txUrl ? (
             <DetailRow label="Transaction">
@@ -592,7 +591,9 @@ export function PublicLinkActiveState({
             Expires in
           </p>
           <p className="mt-2 text-sm font-bold text-text-primary">
+            <span suppressHydrationWarning>
             {formatRelativeExpiry(link.expiresAt)}
+            </span>
           </p>
         </div>
         <div className="rounded-[22px] border border-border-secondary bg-bg-secondary/70 p-4">

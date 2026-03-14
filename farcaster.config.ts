@@ -58,10 +58,9 @@ export const farcasterConfig = {
     screenshotUrls: [
       `${ROOT_URL}/distribution/screenshot-home.png`,
       `${ROOT_URL}/distribution/screenshot-create.png`,
-      `${ROOT_URL}/distribution/screenshot-my-links.png`,
     ],
     iconUrl: `${ROOT_URL}/distribution/icon-1024.png`,
-    splashImageUrl: `${ROOT_URL}/distribution/splash-1200.png`,
+    splashImageUrl: `${ROOT_URL}/distribution/splash-200.png`,
     splashBackgroundColor: "#000000",
     homeUrl: ROOT_URL,
     primaryCategory: "finance",

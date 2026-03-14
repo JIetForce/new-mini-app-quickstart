@@ -11,7 +11,7 @@ export default function PaymentLinkNotFound() {
 
       <div className="mx-auto flex min-h-[calc(100vh-72px)] w-full max-w-md items-center px-4 py-8">
         <section className="w-full rounded-[28px] border border-border-primary bg-bg-secondary/90 p-6 shadow-[0_18px_60px_-30px_rgba(0,0,0,0.75)]">
-          <div className="mb-6 flex size-[72px] items-center justify-center rounded-full bg-bg-brand-primary text-fg-brand-primary">
+          <div className="mx-auto mb-6 flex size-[72px] items-center justify-center rounded-full bg-bg-brand-primary text-fg-brand-primary">
             <CircleAlert className="size-9" strokeWidth={1.9} />
           </div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-brand-tertiary">

@@ -9,6 +9,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatUtcTimestamp } from "@/lib/format/date";
 import { buildBaseScanTxUrl } from "@/lib/identity/display";
 import {
   PAYMENT_LINK_STATUS,
@@ -31,14 +32,6 @@ function formatAmount(amountUsdc: string): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 6,
   }).format(Number(amountUsdc));
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleString();
 }
 
 interface MyLinkCardProps {
@@ -68,7 +61,7 @@ export function MyLinkCard({
                 {link.status}
               </Badge>
               <span className="text-xs text-text-tertiary">
-                Created {formatDate(link.createdAt)}
+                Created {formatUtcTimestamp(link.createdAt)}
               </span>
             </div>
             <h2 className="text-xl font-bold leading-6 text-text-primary">
@@ -107,7 +100,7 @@ export function MyLinkCard({
                   Paid at
                 </dt>
                 <dd className="text-sm text-text-primary">
-                  {formatDate(link.paidAt)}
+                  {formatUtcTimestamp(link.paidAt)}
                 </dd>
               </div>
             ) : null}

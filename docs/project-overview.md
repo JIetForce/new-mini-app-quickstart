@@ -116,6 +116,7 @@ The page shows:
 - wallet address for the link owner / receiver
 - created timestamp
 - paid timestamp if present
+- absolute timestamps rendered in UTC for consistent output
 - open-link action
 - copy-link action
 - transaction link when the stored `payment_id` is a renderable Base tx hash
@@ -180,6 +181,7 @@ The repo now includes a distribution-focused metadata surface:
 - `app/layout.tsx` publishes canonical Open Graph and Twitter metadata
 - `app/page.tsx` publishes Mini App launch metadata
 - `public/distribution/` contains dedicated manifest/discovery assets
+- portrait screenshots are current live-product captures sized for distribution surfaces
 
 Current manifest behavior:
 - `canonicalDomain` is derived from the canonical app URL host
