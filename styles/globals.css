@@ -284,6 +284,24 @@ body {
   * {
     @apply border-border-secondary outline-focus-ring/50;
   }
+
+  input[data-slot="input"],
+  textarea[data-slot="textarea"] {
+    color-scheme: dark;
+  }
+
+  input[data-slot="input"]:-webkit-autofill,
+  input[data-slot="input"]:-webkit-autofill:hover,
+  input[data-slot="input"]:-webkit-autofill:focus,
+  textarea[data-slot="textarea"]:-webkit-autofill,
+  textarea[data-slot="textarea"]:-webkit-autofill:hover,
+  textarea[data-slot="textarea"]:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--color-text-primary);
+    caret-color: var(--color-text-primary);
+    border-color: var(--color-border-primary);
+    box-shadow: 0 0 0 1000px var(--color-bg-secondary) inset;
+    transition: background-color 9999s ease-in-out 0s;
+  }
 }
 
 /* ============================================

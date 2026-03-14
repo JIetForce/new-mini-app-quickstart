@@ -5,24 +5,24 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap uppercase tracking-wide transition-colors [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
         default:
-          "bg-bg-brand-primary text-text-brand-secondary [a&]:hover:bg-bg-brand-secondary [a&]:hover:text-text-brand-secondary-hover",
+          "border-border-brand-alt bg-bg-brand-primary text-text-brand-primary",
         secondary:
-          "bg-bg-secondary text-text-secondary [a&]:hover:bg-bg-secondary-hover",
+          "border-border-primary bg-bg-secondary text-text-secondary",
         success:
-          "bg-bg-success-secondary text-text-success-primary [a&]:hover:opacity-90",
+          "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
         warning:
-          "bg-bg-warning-secondary text-text-warning-primary [a&]:hover:opacity-90",
+          "border-amber-500/20 bg-amber-500/10 text-amber-400",
         destructive:
-          "bg-bg-error-secondary text-text-error-primary focus-visible:ring-focus-ring-error/20 [a&]:hover:opacity-90",
+          "border-red-500/20 bg-red-500/10 text-red-400",
         outline:
-          "border-border-primary text-text-primary [a&]:hover:bg-bg-primary-hover",
-        ghost: "[a&]:hover:bg-bg-primary-hover [a&]:hover:text-text-primary",
-        link: "text-text-brand-secondary underline-offset-4 [a&]:hover:underline",
+          "border-border-primary bg-transparent text-text-primary",
+        ghost: "border-transparent [a&]:hover:bg-bg-brand-primary",
+        link: "border-transparent text-text-brand-primary underline-offset-4 [a&]:hover:underline",
       },
     },
     defaultVariants: {

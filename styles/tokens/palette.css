@@ -439,4 +439,13 @@
   --yellow-800: #854a0e;
   --yellow-900: #713b12;
   --yellow-950: #542c0d;
+
+  /* Pay Link Design System */
+  --primary-cyan: #0dccf2;
+  --primary-cyan-hover: #0bb8d9;
+  --primary-cyan-muted: rgba(13, 204, 242, 0.1);
+  --base-graphite: #101f22;
+  --base-graphite-light: #13161b;
+  --base-graphite-card: rgba(13, 204, 242, 0.05);
+  --indigo-glow: #4f46e5;
 }

@@ -1,21 +1,50 @@
 import { getAddress, isAddress } from "viem";
 
-export const PAYMENT_LINK_STATUSES = [
-  "active",
-  "paid",
-  "expired",
-  "canceled",
-] as const;
+export const PAYMENT_LINK_STATUS = {
+  ACTIVE: "active",
+  PAID: "paid",
+  EXPIRED: "expired",
+  CANCELED: "canceled",
+} as const;
 
-export const PAYMENT_ATTEMPT_STATUSES = [
-  "pending",
-  "completed",
-  "failed",
-  "not_found",
-] as const;
+export const PAYMENT_ATTEMPT_STATUS = {
+  PENDING: "pending",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  NOT_FOUND: "not_found",
+} as const;
 
-export type PaymentLinkStatus = (typeof PAYMENT_LINK_STATUSES)[number];
-export type PaymentAttemptStatus = (typeof PAYMENT_ATTEMPT_STATUSES)[number];
+export const PAYMENT_LINK_STATUSES = Object.values(PAYMENT_LINK_STATUS);
+export const PAYMENT_ATTEMPT_STATUSES = Object.values(PAYMENT_ATTEMPT_STATUS);
+
+export type PaymentLinkStatus =
+  (typeof PAYMENT_LINK_STATUS)[keyof typeof PAYMENT_LINK_STATUS];
+export type PaymentAttemptStatus =
+  (typeof PAYMENT_ATTEMPT_STATUS)[keyof typeof PAYMENT_ATTEMPT_STATUS];
+
+export const PAYMENT_LINK_EXPIRATION_PRESET = {
+  ONE_HOUR: "1_hour",
+  TWELVE_HOURS: "12_hours",
+  ONE_DAY: "1_day",
+  SEVEN_DAYS: "7_days",
+  THIRTY_DAYS: "30_days",
+  NEVER: "never",
+} as const;
+
+export type PaymentLinkExpirationPreset =
+  (typeof PAYMENT_LINK_EXPIRATION_PRESET)[keyof typeof PAYMENT_LINK_EXPIRATION_PRESET];
+
+export const PAYMENT_LINK_EXPIRATION_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: PaymentLinkExpirationPreset;
+}> = [
+  { label: "1 hour", value: PAYMENT_LINK_EXPIRATION_PRESET.ONE_HOUR },
+  { label: "12 hours", value: PAYMENT_LINK_EXPIRATION_PRESET.TWELVE_HOURS },
+  { label: "1 day", value: PAYMENT_LINK_EXPIRATION_PRESET.ONE_DAY },
+  { label: "7 days", value: PAYMENT_LINK_EXPIRATION_PRESET.SEVEN_DAYS },
+  { label: "30 days", value: PAYMENT_LINK_EXPIRATION_PRESET.THIRTY_DAYS },
+  { label: "Never", value: PAYMENT_LINK_EXPIRATION_PRESET.NEVER },
+] as const;
 
 export interface PaymentLinkRecord {
   id: string;
@@ -54,7 +83,7 @@ export interface PublicPaymentLink {
   creatorUsername: string | null;
   creatorDisplayName: string | null;
   creatorPfpUrl: string | null;
-  recipientAddress: string;
+  walletAddress: string;
   amountUsdc: string;
   title: string | null;
   note: string | null;
@@ -73,7 +102,6 @@ export interface CreatePaymentLinkInput {
   creatorUsername: string | null;
   creatorDisplayName: string | null;
   creatorPfpUrl: string | null;
-  recipientAddress: string;
   title: string | null;
   note: string | null;
   expiresAt: string | null;
@@ -118,18 +146,24 @@ function normalizeOptionalFid(value: unknown): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-function normalizeOptionalAddress(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
+export function isPaymentLinkStatus(value: unknown): value is PaymentLinkStatus {
+  return typeof value === "string" && PAYMENT_LINK_STATUSES.includes(value as PaymentLinkStatus);
+}
 
-  const trimmed = value.trim();
+export function isPaymentAttemptStatus(
+  value: unknown,
+): value is PaymentAttemptStatus {
+  return typeof value === "string" &&
+    PAYMENT_ATTEMPT_STATUSES.includes(value as PaymentAttemptStatus);
+}
 
-  if (!trimmed || !isAddress(trimmed)) {
-    return null;
-  }
-
-  return getAddress(trimmed);
+function isPaymentLinkExpirationPreset(
+  value: unknown,
+): value is PaymentLinkExpirationPreset {
+  return typeof value === "string" &&
+    Object.values(PAYMENT_LINK_EXPIRATION_PRESET).includes(
+      value as PaymentLinkExpirationPreset,
+    );
 }
 
 export function normalizeUsdcAmount(value: unknown): string {
@@ -168,26 +202,33 @@ export function normalizePaymentId(value: unknown): string {
   return paymentId;
 }
 
-export function normalizeExpiration(value: unknown): string | null {
+export function normalizeExpirationPreset(value: unknown): string | null {
   if (value == null || value === "") {
     return null;
   }
 
-  if (typeof value !== "string") {
-    throw new Error("Expiration must be an ISO datetime string.");
+  if (!isPaymentLinkExpirationPreset(value)) {
+    throw new Error("Expiration must use a supported option.");
   }
 
-  const parsed = new Date(value);
+  const now = Date.now();
 
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error("Expiration must be a valid datetime.");
+  switch (value) {
+    case PAYMENT_LINK_EXPIRATION_PRESET.ONE_HOUR:
+      return new Date(now + 60 * 60 * 1000).toISOString();
+    case PAYMENT_LINK_EXPIRATION_PRESET.TWELVE_HOURS:
+      return new Date(now + 12 * 60 * 60 * 1000).toISOString();
+    case PAYMENT_LINK_EXPIRATION_PRESET.ONE_DAY:
+      return new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    case PAYMENT_LINK_EXPIRATION_PRESET.SEVEN_DAYS:
+      return new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString();
+    case PAYMENT_LINK_EXPIRATION_PRESET.THIRTY_DAYS:
+      return new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+    case PAYMENT_LINK_EXPIRATION_PRESET.NEVER:
+      return null;
+    default:
+      throw new Error("Expiration must use a supported option.");
   }
-
-  if (parsed.getTime() <= Date.now()) {
-    throw new Error("Expiration must be in the future.");
-  }
-
-  return parsed.toISOString();
 }
 
 export function parseCreatePaymentLinkInput(value: unknown): CreatePaymentLinkInput {
@@ -196,12 +237,10 @@ export function parseCreatePaymentLinkInput(value: unknown): CreatePaymentLinkIn
   }
 
   const payload = value as Record<string, unknown>;
-  const recipientAddress = normalizeAddress(
-    payload.recipientAddress,
-    "Recipient address",
+  const creatorAddress = normalizeAddress(
+    payload.creatorAddress,
+    "Creator address",
   );
-  const creatorAddress =
-    normalizeOptionalAddress(payload.creatorAddress) ?? recipientAddress;
 
   return {
     amountUsdc: normalizeUsdcAmount(payload.amountUsdc),
@@ -210,10 +249,11 @@ export function parseCreatePaymentLinkInput(value: unknown): CreatePaymentLinkIn
     creatorUsername: trimToNull(payload.creatorUsername, 80),
     creatorDisplayName: trimToNull(payload.creatorDisplayName, 120),
     creatorPfpUrl: trimToNull(payload.creatorPfpUrl, 500),
-    recipientAddress,
     title: trimToNull(payload.title, 120),
     note: trimToNull(payload.note, 500),
-    expiresAt: normalizeExpiration(payload.expiresAt),
+    expiresAt: normalizeExpirationPreset(
+      payload.expirationPreset ?? PAYMENT_LINK_EXPIRATION_PRESET.NEVER,
+    ),
   };
 }
 
@@ -292,7 +332,7 @@ export function toPublicPaymentLink(link: PaymentLinkRecord): PublicPaymentLink 
     creatorUsername: link.creator_username,
     creatorDisplayName: link.creator_display_name,
     creatorPfpUrl: link.creator_pfp_url,
-    recipientAddress: link.recipient_address,
+    walletAddress: link.recipient_address,
     amountUsdc: normalizeUsdcAmount(link.amount_usdc),
     title: link.title,
     note: link.note,

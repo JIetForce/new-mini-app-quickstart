@@ -13,6 +13,8 @@ import {
   type PaymentAttemptStatus,
   type PaymentLinkRecord,
   type PaymentLinkStatus,
+  PAYMENT_ATTEMPT_STATUS,
+  PAYMENT_LINK_STATUS,
   createPaymentLinkSlug,
   isPaymentLinkExpired,
   normalizeAddress,
@@ -49,8 +51,11 @@ async function fetchPaymentLinkBySlug(
 async function syncExpiredPaymentLink(
   link: PaymentLinkRecord,
 ): Promise<PaymentLinkRecord> {
-  if (link.status === "active" && isPaymentLinkExpired(link)) {
-    return updatePaymentLink(link.id, { status: "expired" });
+  if (
+    link.status === PAYMENT_LINK_STATUS.ACTIVE &&
+    isPaymentLinkExpired(link)
+  ) {
+    return updatePaymentLink(link.id, { status: PAYMENT_LINK_STATUS.EXPIRED });
   }
 
   return link;
@@ -135,7 +140,7 @@ async function insertPaymentAttempt(
       const existingAttempt = await fetchPaymentAttempt(paymentLinkId, paymentId);
 
       if (existingAttempt) {
-        return existingAttempt.status === "completed" ||
+        return existingAttempt.status === PAYMENT_ATTEMPT_STATUS.COMPLETED ||
           existingAttempt.status === status
           ? existingAttempt
           : updatePaymentAttempt(existingAttempt.id, status);
@@ -316,10 +321,10 @@ export async function getPaymentLinkBySlug(
 
   if (
     options.syncExpired &&
-    link.status === "active" &&
+    link.status === PAYMENT_LINK_STATUS.ACTIVE &&
     isPaymentLinkExpired(link)
   ) {
-    return updatePaymentLink(link.id, { status: "expired" });
+    return updatePaymentLink(link.id, { status: PAYMENT_LINK_STATUS.EXPIRED });
   }
 
   return link;
@@ -353,11 +358,11 @@ export async function createPaymentLink(
             creator_username: input.creatorUsername,
             creator_display_name: input.creatorDisplayName,
             creator_pfp_url: input.creatorPfpUrl,
-            recipient_address: input.recipientAddress,
+            recipient_address: input.creatorAddress,
             amount_usdc: Number(input.amountUsdc),
             title: input.title,
             note: input.note,
-            status: "active",
+            status: PAYMENT_LINK_STATUS.ACTIVE,
             expires_at: input.expiresAt,
             created_at: createdAt,
           }),
@@ -397,7 +402,11 @@ export async function confirmPaymentLink(
     throw new PaymentLinkServiceError("Payment link not found.", 404);
   }
 
-  if (link.status === "paid" && link.payment_id && link.payment_id !== input.paymentId) {
+  if (
+    link.status === PAYMENT_LINK_STATUS.PAID &&
+    link.payment_id &&
+    link.payment_id !== input.paymentId
+  ) {
     throw new PaymentLinkServiceError(
       "This payment link has already been paid.",
       409,
@@ -406,8 +415,9 @@ export async function confirmPaymentLink(
 
   const existingAttempt = await fetchPaymentAttempt(link.id, input.paymentId);
   const existingCompletedState =
-    existingAttempt?.status === "completed" ||
-    (link.status === "paid" && link.payment_id === input.paymentId);
+    existingAttempt?.status === PAYMENT_ATTEMPT_STATUS.COMPLETED ||
+    (link.status === PAYMENT_LINK_STATUS.PAID &&
+      link.payment_id === input.paymentId);
 
   if (existingCompletedState) {
     const paidLink = await finalizeSuccessfulPayment(
@@ -417,7 +427,11 @@ export async function confirmPaymentLink(
     );
     const attempt =
       (await fetchPaymentAttempt(paidLink.id, input.paymentId)) ??
-      (await insertPaymentAttempt(paidLink.id, input.paymentId, "completed"));
+      (await insertPaymentAttempt(
+        paidLink.id,
+        input.paymentId,
+        PAYMENT_ATTEMPT_STATUS.COMPLETED,
+      ));
 
     return {
       link: paidLink,
@@ -431,7 +445,7 @@ export async function confirmPaymentLink(
   });
   const effectiveStatus = paymentStatus.status;
 
-  if (effectiveStatus === "completed") {
+  if (effectiveStatus === PAYMENT_ATTEMPT_STATUS.COMPLETED) {
     try {
       const { payerAddress } = assertVerifiedPaymentMatchesLink(link, paymentStatus);
       const paidLink = await finalizeSuccessfulPayment(
@@ -441,7 +455,11 @@ export async function confirmPaymentLink(
       );
       const attempt =
         (await fetchPaymentAttempt(paidLink.id, input.paymentId)) ??
-        (await insertPaymentAttempt(paidLink.id, input.paymentId, "completed"));
+        (await insertPaymentAttempt(
+          paidLink.id,
+          input.paymentId,
+          PAYMENT_ATTEMPT_STATUS.COMPLETED,
+        ));
 
       return {
         attempt,
@@ -450,8 +468,8 @@ export async function confirmPaymentLink(
     } catch (error) {
       const fallbackStatus: PaymentAttemptStatus =
         error instanceof PaymentLinkServiceError && error.status === 502
-          ? "pending"
-          : "failed";
+          ? PAYMENT_ATTEMPT_STATUS.PENDING
+          : PAYMENT_ATTEMPT_STATUS.FAILED;
       if (
         !existingAttempt ||
         existingAttempt.status !== fallbackStatus
@@ -463,8 +481,11 @@ export async function confirmPaymentLink(
         }
       }
 
-      if (link.status === "active" && isPaymentLinkExpired(link)) {
-        await updatePaymentLink(link.id, { status: "expired" });
+      if (
+        link.status === PAYMENT_LINK_STATUS.ACTIVE &&
+        isPaymentLinkExpired(link)
+      ) {
+        await updatePaymentLink(link.id, { status: PAYMENT_LINK_STATUS.EXPIRED });
       }
 
       throw error;
@@ -478,9 +499,14 @@ export async function confirmPaymentLink(
         ? await updatePaymentAttempt(existingAttempt.id, effectiveStatus)
         : await insertPaymentAttempt(link.id, input.paymentId, effectiveStatus);
 
-  if (link.status === "active" && isPaymentLinkExpired(link)) {
+  if (
+    link.status === PAYMENT_LINK_STATUS.ACTIVE &&
+    isPaymentLinkExpired(link)
+  ) {
     return {
-      link: await updatePaymentLink(link.id, { status: "expired" }),
+      link: await updatePaymentLink(link.id, {
+        status: PAYMENT_LINK_STATUS.EXPIRED,
+      }),
       attempt: baseAttempt,
     };
   }

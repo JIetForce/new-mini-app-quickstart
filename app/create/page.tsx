@@ -1,20 +1,39 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Coins, Link2, LockKeyhole, Wallet } from "lucide-react";
 import { useAccount } from "wagmi";
 
+import { FormField } from "@/components/paylink/form-field";
+import { PageTopBar } from "@/components/paylink/top-bar";
+import { WalletSessionCard } from "@/components/paylink/wallet-session-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useWalletSession } from "@/lib/auth/useWalletSession";
+import { getIdentityPresentation } from "@/lib/identity/display";
+import { useResolvedNames } from "@/lib/identity/useResolvedNames";
+import {
+  PAYMENT_LINK_EXPIRATION_OPTIONS,
+  PAYMENT_LINK_EXPIRATION_PRESET,
+  normalizeUsdcAmount,
+  type PaymentLinkExpirationPreset,
+} from "@/lib/payment-links/shared";
 
 import { useMiniApp } from "../providers/MiniAppProvider";
 
 export default function CreatePage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
   const { context } = useMiniApp();
   const {
     authenticate,
@@ -24,33 +43,80 @@ export default function CreatePage() {
     session,
     sessionMismatch,
   } = useWalletSession();
+  const { names } = useResolvedNames([address, session?.address]);
   const [amountUsdc, setAmountUsdc] = useState("");
-  const [recipientAddress, setRecipientAddress] = useState("");
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [recipientEdited, setRecipientEdited] = useState(false);
-  const [showRecipientOverride, setShowRecipientOverride] = useState(false);
+  const [expirationPreset, setExpirationPreset] =
+    useState<PaymentLinkExpirationPreset>(
+      PAYMENT_LINK_EXPIRATION_PRESET.NEVER,
+    );
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (address && !recipientEdited) {
-      setRecipientAddress(address);
-    }
-  }, [address, recipientEdited]);
+  const trimmedAmount = amountUsdc.trim();
 
   const creatorFid =
     typeof context?.user?.fid === "number" && context.user.fid > 0
       ? context.user.fid
       : null;
+  const payoutAddress = session?.address ?? address ?? null;
+  const isSessionReady = Boolean(session && !sessionMismatch);
+  const connectedIdentity = getIdentityPresentation({
+    address: payoutAddress,
+    basename:
+      names[session?.address ?? ""] ?? names[address ?? ""] ?? null,
+  });
+  const sessionState = isSessionLoading
+    ? "loading"
+    : sessionMismatch
+      ? "mismatch"
+      : session
+        ? "verified"
+        : "needs_auth";
+  const sessionDescription = useMemo(() => {
+    if (sessionMismatch) {
+      return "Your connected wallet and verified session do not match. Re-confirm ownership before creating a link.";
+    }
+
+    if (session) {
+      return "This verified wallet session authorizes owner actions. New links always pay into this same wallet.";
+    }
+
+    return "Confirm wallet ownership to create a verified session before making a pay link.";
+  }, [session, sessionMismatch]);
+  const amountError = useMemo(() => {
+    if (!trimmedAmount) {
+      return null;
+    }
+
+    try {
+      normalizeUsdcAmount(trimmedAmount);
+      return null;
+    } catch (validationError) {
+      return validationError instanceof Error
+        ? validationError.message
+        : "Enter a valid USDC amount.";
+    }
+  }, [trimmedAmount]);
+  const canProceed =
+    Boolean(payoutAddress) &&
+    Boolean(trimmedAmount) &&
+    !amountError &&
+    !isSubmitting &&
+    !isAuthenticating &&
+    !isSessionLoading;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
+    if (!trimmedAmount || amountError) {
+      setError(amountError || "Enter a valid USDC amount.");
+      return;
+    }
+
     if (!session || sessionMismatch) {
-      setError("Sign in with your wallet before creating a payment link.");
+      setError("Confirm wallet ownership before creating a payment link.");
       return;
     }
 
@@ -68,10 +134,9 @@ export default function CreatePage() {
           creatorUsername: context?.user?.username ?? null,
           creatorDisplayName: context?.user?.displayName ?? null,
           creatorPfpUrl: context?.user?.pfpUrl ?? null,
-          recipientAddress,
+          expirationPreset,
           title,
           note,
-          expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         }),
       });
 
@@ -97,217 +162,181 @@ export default function CreatePage() {
   }
 
   return (
-    <main className="min-h-screen bg-bg-secondary-subtle px-4 py-8 sm:px-6 sm:py-10">
-      <section className="mx-auto w-full max-w-3xl rounded-3xl border border-border-primary bg-bg-primary p-6 text-text-primary shadow-[0px_12px_40px_0px_var(--color-shadow-lg-1)] sm:p-8">
-        <div className="mb-6 flex flex-col gap-3">
-          <p className="text-xs font-bold tracking-[0.12em] text-text-brand-secondary uppercase">
-            Create
-          </p>
-          <h1 className="font-display text-display-sm font-medium tracking-[-0.04em] text-text-primary sm:text-display-md">
-            Create a one-time USDC payment link
-          </h1>
-          <p className="text-md text-text-secondary">
-            Recipient defaults to the connected Base Account when available. The
-            link can be paid once and then locks.
-          </p>
-        </div>
+    <main className="min-h-screen bg-bg-primary">
+      <PageTopBar
+        title="Create Pay Link"
+        backHref="/"
+        rightAction={
+          <Button asChild size="sm" variant="link">
+            <Link href="/my-links">My links</Link>
+          </Button>
+        }
+      />
 
-        <div className="mb-6 rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4">
-          {isSessionLoading ? (
-            <p className="text-sm leading-6 text-text-tertiary">
-              Checking wallet session...
-            </p>
-          ) : sessionMismatch ? (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm leading-6 text-text-secondary">
-                Connected Base Account and ownership session do not match.
-                Confirm ownership again before creating links.
-              </p>
-              <div className="flex flex-wrap gap-3 text-sm text-text-tertiary">
-                <span className="[overflow-wrap:anywhere]">
-                  Connected: {address}
-                </span>
-                <span className="[overflow-wrap:anywhere]">
-                  Session: {session?.address}
-                </span>
+      <form
+        autoComplete="off"
+        className="mx-auto flex min-h-[calc(100vh-72px)] w-full max-w-md flex-col px-4 pb-40 pt-6"
+        onSubmit={handleSubmit}
+      >
+        <div className="space-y-8">
+          <section className="space-y-5">
+            <div className="flex items-center gap-2 text-text-brand-tertiary">
+              <Coins className="size-4" strokeWidth={2.1} />
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em]">
+                Payment Details
+              </h2>
+            </div>
+
+            <FormField errorText={amountError} label="Amount (USDC)" required>
+              <div className="relative">
+                <Input
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  className="h-14 pr-24 text-xl font-semibold"
+                  inputMode="decimal"
+                  min="0"
+                  name="amountUsdc"
+                  onChange={(event) => setAmountUsdc(event.target.value)}
+                  placeholder="0.00"
+                  required
+                  spellCheck={false}
+                  type="text"
+                  value={amountUsdc}
+                />
+                <div className="absolute inset-y-3 right-3 inline-flex items-center rounded-2xl border border-border-brand-alt bg-bg-brand-primary px-3 text-sm font-bold text-text-brand-primary">
+                  USDC
+                </div>
               </div>
-              <Button
-                className="h-11 rounded-full px-5"
-                disabled={isAuthenticating}
-                onClick={() => void authenticate()}
-                size="lg"
-                type="button"
-              >
-                {isAuthenticating ? "Confirming..." : "Confirm ownership again"}
-              </Button>
-            </div>
-          ) : session ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-text-primary">
-                Wallet session
-              </span>
-              <code className="[overflow-wrap:anywhere] text-sm text-text-primary">
-                {session.address}
-              </code>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm leading-6 text-text-secondary">
-                {address
-                  ? "Your recipient is already auto-filled from the connected Base Account. Confirm ownership to create a secure session before creating links."
-                  : "Create a secure ownership session with your wallet before creating links. In Base Preview or the Base app, your Base Account can still auto-fill the recipient once available."}
-              </p>
-              <Button
-                className="h-11 rounded-full px-5"
-                disabled={isAuthenticating}
-                onClick={() => void authenticate()}
-                size="lg"
-                type="button"
-              >
-                {isAuthenticating ? "Confirming..." : "Confirm ownership"}
-              </Button>
-            </div>
-          )}
-          {authError ? (
-            <p className="mt-3 text-sm font-medium text-text-error-primary">
-              {authError}
-            </p>
-          ) : null}
-        </div>
+            </FormField>
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-text-primary">
-              Amount (USDC)
-            </span>
-            <Input
-              inputMode="decimal"
-              min="0"
-              name="amountUsdc"
-              onChange={(event) => setAmountUsdc(event.target.value)}
-              placeholder="0.05"
-              required
-              type="text"
-              value={amountUsdc}
-            />
-          </label>
-
-          {address && !showRecipientOverride ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-text-primary">
-                Recipient address
-              </span>
-              <div className="flex flex-col gap-3 rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4 sm:flex-row sm:items-center sm:justify-between">
-                <code className="[overflow-wrap:anywhere] text-sm text-text-primary">
-                  {recipientAddress || address}
-                </code>
-                <Button
-                  className="h-9 rounded-full px-4 text-sm"
-                  onClick={() => setShowRecipientOverride(true)}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  Edit
-                </Button>
-              </div>
-              <span className="text-sm leading-6 text-text-tertiary">
-                Auto-filled from the connected Base Account.
-              </span>
-            </div>
-          ) : (
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-text-primary">
-                Recipient address
-              </span>
-              <Input
-                name="recipientAddress"
-                onChange={(event) => {
-                  setRecipientEdited(true);
-                  setRecipientAddress(event.target.value);
-                }}
-                placeholder="0x..."
-                required
-                spellCheck={false}
-                type="text"
-                value={recipientAddress}
-              />
-              <span className="text-sm leading-6 text-text-tertiary">
-                {isConnected
-                  ? "Connected wallet detected. Override it only if this payment should go somewhere else."
-                  : "Wallet autofill works in Base Preview or the Base app. In a normal browser, enter the recipient manually."}
-              </span>
-            </label>
-          )}
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-text-primary">
-              Title (optional)
-            </span>
-            <Input
-              maxLength={120}
-              name="title"
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Coffee refund"
-              type="text"
-              value={title}
-            />
-          </label>
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-text-primary">
-              Note (optional)
-            </span>
-            <Textarea
-              maxLength={500}
-              name="note"
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="USDC on Base only"
-              rows={4}
-              value={note}
-            />
-          </label>
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-text-primary">
-              Expiration (optional)
-            </span>
-            <Input
-              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
-              name="expiresAt"
-              onChange={(event) => setExpiresAt(event.target.value)}
-              type="datetime-local"
-              value={expiresAt}
-            />
-          </label>
-
-          {error ? (
-            <p className="text-sm font-medium text-text-error-primary">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              className="h-11 rounded-full px-5"
-              disabled={
-                isSubmitting ||
-                isSessionLoading ||
-                isAuthenticating ||
-                !session ||
-                sessionMismatch
-              }
-              size="lg"
-              type="submit"
+            <FormField
+              helperText="At creation time the app stores your verified owner wallet as the receiving address. It is not editable."
+              label="Receiving Wallet"
             >
-              {isSubmitting ? "Creating..." : "Create payment link"}
+              <div className="rounded-[24px] border border-border-primary bg-bg-secondary/80 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-2xl bg-bg-brand-primary text-fg-brand-primary">
+                    <Wallet className="size-5" strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-text-brand-tertiary">
+                      {connectedIdentity.primary === connectedIdentity.shortAddress
+                        ? "Owner wallet"
+                        : connectedIdentity.primary}
+                    </p>
+                    {payoutAddress ? (
+                      <p className="mt-1 font-mono text-sm text-text-primary [overflow-wrap:anywhere]">
+                        {payoutAddress}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-text-secondary">
+                        Your wallet address appears here inside Base App or after wallet connection.
+                      </p>
+                    )}
+                  </div>
+                  {isSessionReady ? (
+                    <div className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400">
+                      <span className="size-1.5 rounded-full bg-emerald-400" />
+                      Verified
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </FormField>
+          </section>
+
+          <section className="space-y-5">
+            <div className="flex items-center gap-2 text-text-brand-tertiary">
+              <LockKeyhole className="size-4" strokeWidth={2.1} />
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em]">
+                Configuration
+              </h2>
+            </div>
+
+            <FormField label="Link Title" optional>
+              <Input
+                maxLength={120}
+                name="title"
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="e.g. Services rendered"
+                type="text"
+                value={title}
+              />
+            </FormField>
+
+            <FormField label="Note" optional>
+              <Textarea
+                maxLength={500}
+                name="note"
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Describe the reason for payment..."
+                rows={3}
+                value={note}
+              />
+            </FormField>
+
+            <FormField label="Expiration" optional>
+              <Select
+                onValueChange={(value) =>
+                  setExpirationPreset(value as PaymentLinkExpirationPreset)
+                }
+                value={expirationPreset}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_LINK_EXPIRATION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </section>
+
+          <WalletSessionCard
+            connectedAddress={address}
+            connectedLabel={connectedIdentity.primary}
+            description={sessionDescription}
+            error={authError || error}
+            isAuthenticating={isAuthenticating}
+            onConfirm={() => void authenticate()}
+            sessionAddress={session?.address}
+            state={sessionState}
+          />
+        </div>
+
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 bg-linear-to-t from-bg-primary via-bg-primary/95 to-transparent px-4 pt-10"
+          style={{
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+          }}
+        >
+          <div className="mx-auto w-full max-w-md space-y-3">
+            <Button
+              className="h-14 w-full text-base"
+              disabled={!canProceed}
+              onClick={isSessionReady ? undefined : () => void authenticate()}
+              type={isSessionReady ? "submit" : "button"}
+            >
+              <Link2 className="size-[18px]" />
+              {isSessionReady
+                ? isSubmitting
+                  ? "Creating link..."
+                  : "Create Pay Link"
+                : isAuthenticating
+                  ? "Confirming ownership..."
+                  : "Confirm wallet ownership"}
             </Button>
-            <Button asChild className="h-11 rounded-full px-5" size="lg" variant="secondary">
-              <Link href="/">Home</Link>
-            </Button>
+            <p className="px-5 text-center text-[11px] leading-4 text-text-tertiary">
+              Link creation uses your verified wallet session. The payment destination is always that same owner wallet.
+            </p>
           </div>
-        </form>
-      </section>
+        </div>
+      </form>
     </main>
   );
 }

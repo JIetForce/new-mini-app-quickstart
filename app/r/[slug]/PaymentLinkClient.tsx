@@ -1,14 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { getPaymentStatus, pay } from "@base-org/account";
+import { CheckCircle2, Copy, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
+import { useAccount } from "wagmi";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  getCreatorIdentityParts,
+  PublicLinkActiveState,
+  PublicLinkInactiveState,
+  PublicLinkPaidState,
+} from "@/components/paylink/public-link-content";
+import { PageTopBar } from "@/components/paylink/top-bar";
+import { Button } from "@/components/ui/button";
+import { useWalletSession } from "@/lib/auth/useWalletSession";
+import {
+  buildBaseScanTxUrl,
+  getIdentityPresentation,
+} from "@/lib/identity/display";
+import { useResolvedNames } from "@/lib/identity/useResolvedNames";
+import {
+  PAYMENT_LINK_STATUS,
+  PAYMENT_ATTEMPT_STATUS,
   type PublicPaymentLink,
 } from "@/lib/payment-links/shared";
 import { cn } from "@/lib/utils";
@@ -23,53 +36,19 @@ interface LinkApiResponse {
   shareUrl: string;
 }
 
-const STATUS_COPY: Record<PublicPaymentLink["status"], string> = {
-  active: "Ready to pay",
-  paid: "Paid",
-  expired: "Expired",
-  canceled: "Canceled",
-};
-
-const STATUS_VARIANTS: Record<
-  PublicPaymentLink["status"],
-  "default" | "success" | "warning" | "destructive"
-> = {
-  active: "default",
-  paid: "success",
-  expired: "warning",
-  canceled: "destructive",
-};
-
-const PRIMARY_BUTTON_CLASS = "h-11 rounded-full px-5";
-
-const SECONDARY_BUTTON_CLASS = "h-11 rounded-full px-5";
-
-const OUTLINE_BUTTON_CLASS = "h-11 rounded-full px-5";
-
-const SUMMARY_CARD_CLASS =
-  "rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4";
-
-function formatAmount(amountUsdc: string): string {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  }).format(Number(amountUsdc));
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "None";
-  }
-
-  return new Date(value).toLocaleString();
-}
-
 export default function PaymentLinkClient({
   initialLink,
   initialShareUrl,
 }: PaymentLinkClientProps) {
+  const { address } = useAccount();
+  const { session } = useWalletSession({ prefetchNonce: false });
   const [link, setLink] = useState(initialLink);
   const [shareUrl, setShareUrl] = useState(initialShareUrl);
+  const identityAddresses = useMemo(
+    () => [link.creatorAddress, link.payerAddress, address, session?.address],
+    [address, link.creatorAddress, link.payerAddress, session?.address],
+  );
+  const { names } = useResolvedNames(identityAddresses);
   const [error, setError] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [lastPaymentId, setLastPaymentId] = useState<string | null>(
@@ -77,10 +56,38 @@ export default function PaymentLinkClient({
   );
   const [isPaying, setIsPaying] = useState(false);
   const [isRefreshing, startRefresh] = useTransition();
-  const [copyLabel, setCopyLabel] = useState("Copy link");
-  const creatorIdentity = getCreatorIdentityParts(link);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const canPay = link.status === "active";
+  const creatorIdentity = getIdentityPresentation({
+    address: link.creatorAddress,
+    basename: names[link.creatorAddress] ?? null,
+    displayName: link.creatorDisplayName,
+    username: link.creatorUsername,
+  });
+  const payerIdentity = getIdentityPresentation({
+    address: link.payerAddress,
+    basename: link.payerAddress ? names[link.payerAddress] ?? null : null,
+  });
+  const canPay = link.status === PAYMENT_LINK_STATUS.ACTIVE;
+  const isCreatorViewer = Boolean(
+    (session?.address &&
+      session.address.toLowerCase() === link.creatorAddress.toLowerCase()) ||
+      (address && address.toLowerCase() === link.creatorAddress.toLowerCase()),
+  );
+  const isPayerViewer = Boolean(
+    address &&
+      link.payerAddress &&
+      address.toLowerCase() === link.payerAddress.toLowerCase(),
+  );
+  const paidViewMode =
+    link.status !== PAYMENT_LINK_STATUS.PAID
+      ? null
+      : isPayerViewer
+        ? "payer"
+        : isCreatorViewer
+          ? "creator"
+          : "generic";
+  const txUrl = buildBaseScanTxUrl(link.paymentId);
 
   async function refreshLink() {
     const response = await fetch(`/api/links/${link.slug}`, {
@@ -98,9 +105,7 @@ export default function PaymentLinkClient({
     setShareUrl(payload.shareUrl);
   }
 
-  async function confirmPayment(
-    paymentId: string,
-  ) {
+  async function confirmPayment(paymentId: string) {
     const response = await fetch(`/api/links/${link.slug}/confirm`, {
       method: "POST",
       headers: {
@@ -133,7 +138,10 @@ export default function PaymentLinkClient({
     setLastPaymentId(paymentId);
     setPaymentMessage(status.reason || status.message);
 
-    if (status.status === "failed" || status.status === "not_found") {
+    if (
+      status.status === PAYMENT_ATTEMPT_STATUS.FAILED ||
+      status.status === PAYMENT_ATTEMPT_STATUS.NOT_FOUND
+    ) {
       setError(status.reason || status.message);
       return status.status;
     }
@@ -150,19 +158,19 @@ export default function PaymentLinkClient({
     try {
       const payment = await pay({
         amount: link.amountUsdc,
-        to: link.recipientAddress,
+        to: link.walletAddress,
         testnet: false,
       });
 
       setLastPaymentId(payment.id);
       const status = await checkPayment(payment.id);
 
-      if (status === "completed") {
+      if (status === PAYMENT_ATTEMPT_STATUS.COMPLETED) {
         setPaymentMessage("Payment completed.");
         return;
       }
 
-      if (status === "pending") {
+      if (status === PAYMENT_ATTEMPT_STATUS.PENDING) {
         setPaymentMessage("Payment submitted. Check status again in a moment.");
       }
     } catch (paymentError) {
@@ -188,9 +196,9 @@ export default function PaymentLinkClient({
     try {
       const status = await checkPayment(lastPaymentId);
 
-      if (status === "completed") {
+      if (status === PAYMENT_ATTEMPT_STATUS.COMPLETED) {
         setPaymentMessage("Payment completed.");
-      } else if (status === "pending") {
+      } else if (status === PAYMENT_ATTEMPT_STATUS.PENDING) {
         setPaymentMessage("Still pending.");
       }
     } catch (statusError) {
@@ -204,181 +212,148 @@ export default function PaymentLinkClient({
     }
   }
 
-  async function handleCopyLink() {
+  async function handleCopy(key: string, value: string) {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopyLabel("Copied");
-      window.setTimeout(() => setCopyLabel("Copy link"), 1500);
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((currentKey) => (currentKey === key ? null : currentKey));
+      }, 1500);
     } catch {
-      setCopyLabel("Copy failed");
-      window.setTimeout(() => setCopyLabel("Copy link"), 1500);
+      setCopiedKey(null);
     }
   }
 
   return (
-    <main className="min-h-screen bg-bg-secondary-subtle px-4 py-8 sm:px-6 sm:py-10">
-      <section className="mx-auto w-full max-w-3xl rounded-3xl border border-border-primary bg-bg-primary p-6 text-text-primary shadow-[0px_12px_40px_0px_var(--color-shadow-lg-1)] sm:p-8">
-        <div className="mb-6 flex flex-col gap-3">
-          <p className="text-xs font-bold tracking-[0.12em] text-text-brand-secondary uppercase">
-            Pay Link
-          </p>
-          <h1 className="font-display text-display-sm font-medium tracking-[-0.04em] text-text-primary sm:text-display-md">
-            {link.title || "One-time USDC payment"}
-          </h1>
-          <p className="text-md text-text-secondary">
-            {link.note || "Pay once with Base Pay. This link closes after a successful payment."}
-          </p>
-        </div>
-
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Button asChild className={SECONDARY_BUTTON_CLASS} size="lg" variant="secondary">
-            <Link href="/">Back to home</Link>
-          </Button>
-          <Button asChild className={OUTLINE_BUTTON_CLASS} size="lg" variant="outline">
-            <Link href="/create">Create your own payment link</Link>
-          </Button>
-        </div>
-
-        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-border-primary bg-bg-secondary-subtle p-4">
-          {link.creatorPfpUrl ? (
-            <div
-              aria-label={creatorIdentity.primary}
-              className="size-12 rounded-full bg-bg-tertiary bg-cover bg-center bg-no-repeat"
-              role="img"
-              style={{ backgroundImage: `url(${link.creatorPfpUrl})` }}
-            />
-          ) : (
-            <div className="inline-flex size-12 items-center justify-center rounded-full bg-bg-brand-secondary font-semibold text-fg-brand-primary">
-              {creatorIdentity.primary.slice(0, 1).toUpperCase()}
-            </div>
-          )}
-          <div className="flex min-w-0 flex-col gap-1">
-            <strong className="[overflow-wrap:anywhere] text-sm font-semibold text-text-primary">
-              {creatorIdentity.primary}
-            </strong>
-            {creatorIdentity.secondary ? (
-              <span className="text-sm leading-6 text-text-tertiary">
-                {creatorIdentity.secondary}
-              </span>
-            ) : null}
-            {creatorIdentity.address ? (
-              <span className="[overflow-wrap:anywhere] text-sm leading-6 text-text-tertiary">
-                {creatorIdentity.address}
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mb-6 grid gap-3 sm:grid-cols-2">
-          <div className={SUMMARY_CARD_CLASS}>
-            <span className="text-sm text-text-tertiary">Amount</span>
-            <strong className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary">
-              ${formatAmount(link.amountUsdc)} USDC
-            </strong>
-          </div>
-          <div className={SUMMARY_CARD_CLASS}>
-            <span className="text-sm text-text-tertiary">Status</span>
-            <Badge className="mt-2" variant={STATUS_VARIANTS[link.status]}>
-              {STATUS_COPY[link.status]}
-            </Badge>
-          </div>
-          <div className={SUMMARY_CARD_CLASS}>
-            <span className="text-sm text-text-tertiary">Recipient</span>
-            <span
-              className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary"
-              title={link.recipientAddress}
+    <main className="min-h-screen bg-bg-primary">
+      <PageTopBar
+        title="Payment Request"
+        subtitle={
+          link.status === PAYMENT_LINK_STATUS.PAID ? "Receipt" : "Base mainnet"
+        }
+        backHref="/"
+        rightAction={
+          <div className="flex items-center gap-1">
+            <Button
+              className="rounded-full"
+              disabled={isRefreshing}
+              onClick={() => {
+                startRefresh(() => {
+                  void refreshLink().catch((refreshError) => {
+                    setError(
+                      refreshError instanceof Error
+                        ? refreshError.message
+                        : "Unable to refresh payment link.",
+                    );
+                  });
+                });
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
             >
-              {link.recipientAddress}
-            </span>
-          </div>
-          <div className={SUMMARY_CARD_CLASS}>
-            <span className="text-sm text-text-tertiary">Expires</span>
-            <span className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary">
-              {formatDate(link.expiresAt)}
-            </span>
-          </div>
-        </div>
-
-        {link.payerAddress ? (
-          <div className={cn("mb-5", SUMMARY_CARD_CLASS)}>
-            <span className="text-sm text-text-tertiary">Paid by</span>
-            <span
-              className="mt-1 block [overflow-wrap:anywhere] text-sm font-semibold text-text-primary"
-              title={link.payerAddress}
+              <RefreshCw
+                className={cn("size-4", isRefreshing && "animate-spin")}
+                strokeWidth={2}
+              />
+            </Button>
+            <Button
+              className="rounded-full"
+              onClick={() => void handleCopy("share", shareUrl)}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
             >
-              {link.payerAddress}
-            </span>
+              {copiedKey === "share" ? (
+                <CheckCircle2 className="size-4" strokeWidth={2} />
+              ) : (
+                <Copy className="size-4" strokeWidth={2} />
+              )}
+            </Button>
           </div>
-        ) : null}
+        }
+      />
 
-        <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <Input aria-label="Share URL" className="h-11" readOnly type="text" value={shareUrl} />
-          <Button
-            className={SECONDARY_BUTTON_CLASS}
-            onClick={handleCopyLink}
-            size="lg"
-            type="button"
-            variant="secondary"
-          >
-            {copyLabel}
-          </Button>
-        </div>
+      <div className={cn("mx-auto w-full max-w-md px-4 pb-10 pt-6", canPay && "pb-40")}>
+        {paidViewMode ? (
+          <PublicLinkPaidState
+            copiedKey={copiedKey}
+            creatorIdentity={creatorIdentity}
+            link={link}
+            onCopy={handleCopy}
+            paidViewMode={paidViewMode}
+            payerIdentity={payerIdentity}
+            txUrl={txUrl}
+          />
+        ) : canPay ? (
+          <PublicLinkActiveState
+            copiedKey={copiedKey}
+            creatorIdentity={creatorIdentity}
+            link={link}
+            onCopy={handleCopy}
+            shareUrl={shareUrl}
+          />
+        ) : (
+          <PublicLinkInactiveState link={link} />
+        )}
 
         {paymentMessage ? (
-          <p className="mb-2 text-sm leading-6 text-text-tertiary">{paymentMessage}</p>
+          <div className="mt-5 rounded-[20px] border border-border-primary bg-bg-brand-primary px-4 py-3 text-sm text-text-secondary">
+            {paymentMessage}
+          </div>
         ) : null}
         {error ? (
-          <p className="mb-2 text-sm font-medium text-text-error-primary">{error}</p>
+          <div className="mt-5 rounded-[20px] border border-border-error/40 bg-bg-error-primary px-4 py-3 text-sm text-text-error-primary">
+            {error}
+          </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {canPay ? (
+        {link.status !== PAYMENT_LINK_STATUS.PAID ? (
+          <div className="mt-6 flex gap-2">
+            {lastPaymentId ? (
+              <Button
+                className="flex-1"
+                disabled={isPaying}
+                onClick={handleCheckStatus}
+                type="button"
+                variant="secondary"
+              >
+                Check payment status
+              </Button>
+            ) : null}
+
+            <Button asChild className="flex-1" variant="outline">
+              <Link href="/create">Create your own</Link>
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      {canPay ? (
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 bg-linear-to-t from-bg-primary via-bg-primary/95 to-transparent px-4 pt-12"
+          style={{
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+          }}
+        >
+          <div className="mx-auto w-full max-w-md space-y-3">
             <Button
-              className={PRIMARY_BUTTON_CLASS}
+              className="h-[60px] w-full text-base"
               disabled={isPaying}
               onClick={handlePay}
               size="lg"
               type="button"
             >
-              {isPaying ? "Processing..." : `Pay $${formatAmount(link.amountUsdc)}`}
+              <Wallet className="size-[18px]" />
+              {isPaying ? "Processing..." : `Pay ${link.amountUsdc} USDC`}
             </Button>
-          ) : null}
-
-          {lastPaymentId && link.status !== "paid" ? (
-            <Button
-              className={SECONDARY_BUTTON_CLASS}
-              disabled={isPaying}
-              onClick={handleCheckStatus}
-              size="lg"
-              type="button"
-              variant="secondary"
-            >
-              Check payment status
-            </Button>
-          ) : null}
-
-          <Button
-            className={OUTLINE_BUTTON_CLASS}
-            disabled={isRefreshing}
-            onClick={() => {
-              startRefresh(() => {
-                void refreshLink().catch((refreshError) => {
-                  setError(
-                    refreshError instanceof Error
-                      ? refreshError.message
-                      : "Unable to refresh payment link.",
-                  );
-                });
-              });
-            }}
-            size="lg"
-            type="button"
-            variant="outline"
-          >
-            {isRefreshing ? "Refreshing..." : "Refresh link"}
-          </Button>
+            <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.18em] text-text-tertiary">
+              <ShieldCheck className="size-4 text-fg-brand-primary" strokeWidth={2} />
+              <span>On-chain payment on Base</span>
+            </div>
+          </div>
         </div>
-      </section>
+      ) : null}
     </main>
   );
 }

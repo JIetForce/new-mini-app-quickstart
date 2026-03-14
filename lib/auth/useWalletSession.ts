@@ -39,7 +39,12 @@ async function readJsonResponse<T>(
   }
 }
 
-export function useWalletSession() {
+export function useWalletSession(
+  options: {
+    prefetchNonce?: boolean;
+  } = {},
+) {
+  const { prefetchNonce = true } = options;
   const { address, connector } = useAccount();
   const chainId = useChainId();
   const { connectAsync, connectors } = useConnect();
@@ -103,14 +108,11 @@ export function useWalletSession() {
 
     void (async () => {
       try {
-        const [sessionResponse, nonceResponse] = await Promise.all([
-          fetch("/api/auth/session", { cache: "no-store" }),
-          fetch("/api/auth/nonce", { cache: "no-store" }),
-        ]);
+        const sessionResponse = await fetch("/api/auth/session", {
+          cache: "no-store",
+        });
         const sessionPayload =
           await readJsonResponse<WalletSessionResponse>(sessionResponse);
-        const noncePayload =
-          await readJsonResponse<WalletNonceResponse>(nonceResponse);
 
         if (!sessionResponse.ok) {
           throw new Error(
@@ -118,15 +120,27 @@ export function useWalletSession() {
           );
         }
 
-        if (!nonceResponse.ok || !noncePayload.nonce) {
-          throw new Error(
-            noncePayload.message || "Unable to start wallet sign-in.",
-          );
+        let noncePayload: (WalletNonceResponse & AuthApiErrorPayload) | null =
+          null;
+
+        if (prefetchNonce) {
+          const nonceResponse = await fetch("/api/auth/nonce", {
+            cache: "no-store",
+          });
+          noncePayload = await readJsonResponse<WalletNonceResponse>(nonceResponse);
+
+          if (!nonceResponse.ok || !noncePayload.nonce) {
+            throw new Error(
+              noncePayload.message || "Unable to start wallet sign-in.",
+            );
+          }
         }
 
         if (!cancelled) {
           setSession(sessionPayload.session);
-          nonceRef.current = noncePayload.nonce;
+          if (noncePayload?.nonce) {
+            nonceRef.current = noncePayload.nonce;
+          }
         }
       } catch (sessionError) {
         if (!cancelled) {
@@ -146,7 +160,7 @@ export function useWalletSession() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [prefetchNonce]);
 
   async function resolveAuthenticationWallet() {
     if (address) {

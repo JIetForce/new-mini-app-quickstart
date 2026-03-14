@@ -9,8 +9,7 @@ import {
   getCreatorPaymentLinks,
 } from "@/lib/payment-links/server";
 import {
-  PAYMENT_LINK_STATUSES,
-  type PaymentLinkStatus,
+  isPaymentLinkStatus,
   toPublicPaymentLink,
 } from "@/lib/payment-links/shared";
 
@@ -22,8 +21,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const rawStatus = searchParams.get("status");
     const status =
-      rawStatus && PAYMENT_LINK_STATUSES.includes(rawStatus as PaymentLinkStatus)
-        ? (rawStatus as PaymentLinkStatus)
+      rawStatus && isPaymentLinkStatus(rawStatus)
+        ? rawStatus
         : undefined;
     const page = Number(searchParams.get("page") ?? "1");
     const pageSize = Number(searchParams.get("pageSize") ?? "10");
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         message:
-          error instanceof Error ? error.message : "Unable to load creator links.",
+          error instanceof Error ? error.message : "Unable to load wallet links.",
       },
       { status: 500 },
     );
