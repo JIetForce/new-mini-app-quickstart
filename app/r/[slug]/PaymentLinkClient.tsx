@@ -278,7 +278,6 @@ export default function PaymentLinkClient({
         {paidViewMode ? (
           <PublicLinkPaidState
             copiedKey={copiedKey}
-            creatorIdentity={creatorIdentity}
             link={link}
             onCopy={handleCopy}
             paidViewMode={paidViewMode}

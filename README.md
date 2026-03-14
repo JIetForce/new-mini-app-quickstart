@@ -41,6 +41,7 @@ npm run dev
 Recommended in deployed environments:
 
 - `NEXT_PUBLIC_URL`
+- `BASE_BUILDER_OWNER_ADDRESS` (optional, only for manifest builder linkage)
 
 ## Validation Commands
 
@@ -54,3 +55,8 @@ npx tsc --noEmit
 - Mini App wallet behavior must be tested in Base Preview or the Base App with a public `https` URL.
 - The browser does not access Supabase tables directly in the current implementation.
 - Owner-only actions rely on a SIWE-backed wallet session, not on Mini App profile metadata.
+- Distribution metadata and manifest assets live in `farcaster.config.ts` and `public/distribution/`.
+- `public/distribution/` should contain current live-product assets, not stale design exports.
+- `NEXT_PUBLIC_URL` should point to the final production HTTPS domain before publishing.
+- If the production domain changes, regenerate `accountAssociation` for that exact domain.
+- The manifest intentionally omits `webhookUrl` because the repo does not implement notifications.

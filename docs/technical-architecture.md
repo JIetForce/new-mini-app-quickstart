@@ -10,6 +10,7 @@
   - server components for initial public link loading
   - client components for wallet/session UX and Base Pay interactions
 - API surface: Next.js route handlers under `app/api`
+- discovery/share surface: Next.js metadata + `/.well-known/farcaster.json`
 
 ## Frontend Stack
 
@@ -46,6 +47,7 @@
 
 - `app/`
   - pages, route handlers, providers, and small UI helpers
+  - route-level metadata for indexable vs `noindex` surfaces
 - `app/api/`
   - auth routes
   - link CRUD/read routes
@@ -73,6 +75,8 @@
   - additive SQL migrations for creator metadata, payer address, auth hardening, RLS, and RPCs
 - `styles/`
   - Tailwind entrypoint and design tokens
+- `public/distribution/`
+  - manifest/discovery assets referenced by `farcaster.config.ts`
 - `docs/`
   - project, flow, architecture, and maintenance docs
 
@@ -248,6 +252,28 @@ The cookie payload contains:
 - `issuedAt`
 - `expiresAt`
 
+## Manifest and Discovery Wiring
+
+Current distribution-facing implementation:
+- [`farcaster.config.ts`](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/farcaster.config.ts) is the source of truth for the Mini App manifest
+- `app/.well-known/farcaster.json/route.ts` serves that manifest directly
+- `lib/env.ts` provides the canonical app URL used by both app metadata and manifest URLs
+- `/` is the intended discovery/share entry page
+- `/create`, `/my-links`, and `/r/[slug]` set `robots: noindex`
+- `public/distribution/` is expected to contain current live-product captures/assets rather than stale design placeholders
+
+Current manifest details:
+- `canonicalDomain` is derived from the canonical app URL host
+- `requiredChains` is pinned to Base mainnet
+- `requiredCapabilities` lists only capabilities currently used by the app shell
+- `baseBuilder.ownerAddress` is optional and env-driven
+- `webhookUrl` is intentionally omitted because the repo has no webhook route or notification flow
+
+Current page metadata details:
+- root layout publishes canonical Open Graph / Twitter metadata
+- home page publishes Mini App launch metadata
+- the app keeps `base:app_id` in metadata
+
 ## RLS and RPC Behavior
 
 Current RLS posture:
@@ -285,10 +311,9 @@ The base table creation for `payment_links` and `payment_attempts` is assumed to
 
 ## Current Limitations and Technical Debt
 
-- [app/rootProvider.tsx](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/app/rootProvider.tsx) appears to be a legacy unused provider entrypoint
 - `@farcaster/quick-auth` is installed but not used in the secure auth path
-- `farcaster.config.ts` includes `webhookUrl`, but there is currently no `/api/webhook` route
 - `canceled` exists in the status model, but there is no implemented cancel action
 - there is no explicit logout route yet
 - the project still relies on production DB state for the original base tables because the repo only contains additive migrations for later changes
 - Basename resolution is best-effort display-only behavior; if no name resolves or RPC access is unavailable, the UI falls back to stored metadata or addresses
+- manifest publishing still depends on an externally valid production domain and matching account association; the repo cannot prove that by itself

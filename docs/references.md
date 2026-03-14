@@ -6,6 +6,10 @@ This file lists the official references that matter for the current codebase. Ke
 
 - [Migrate to a Standard Web App](https://docs.base.org/mini-apps/quickstart/migrate-to-standard-web-app)
   - The most important Base direction for this repo. It explains the move away from Farcaster-specific auth toward wagmi + viem + wallet-based identity.
+- [Publish Your Mini App](https://docs.base.org/mini-apps/guides/publish)
+  - Reference for manifest fields, discovery metadata, and the publishing checklist relevant to this repo.
+- [Preview Your Mini App](https://docs.base.org/mini-apps/guides/preview)
+  - Relevant for validating the manifest, metadata, and embedded app behavior against a public HTTPS URL before distribution.
 - [Authenticate Users](https://docs.base.org/base-account/guides/authenticate-users)
   - Reference for the server-issued nonce + SIWE verification model used here.
 - [Base Pay in Wagmi Apps](https://docs.base.org/base-account/framework-integrations/wagmi/base-pay)
@@ -14,6 +18,8 @@ This file lists the official references that matter for the current codebase. Ke
   - Reference for the trusted payment-status fields used in confirm logic.
 - [Sign Your Manifest](https://docs.base.org/mini-apps/features/sign-manifest)
   - Relevant when updating account association and manifest ownership verification.
+- [Builder Rewards](https://docs.base.org/mini-apps/builders/builders)
+  - Relevant for the optional `baseBuilder.ownerAddress` manifest field and for understanding what still has to be completed outside the repo.
 
 ## Base Account Authentication and Payments
 

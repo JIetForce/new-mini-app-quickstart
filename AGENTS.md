@@ -56,6 +56,7 @@ If a task changes any of the following, update the relevant docs in the same tas
 - trust boundaries
 - database schema or migrations
 - environment variables
+- manifest/distribution metadata or referenced app assets
 - UI copy that changes product meaning
 - Base App / Mini App specific behavior
 

@@ -52,6 +52,7 @@ Not trusted for ownership or payment security:
 
 If any of the following change, update the relevant docs in the same task:
 - routes
+- manifest/distribution metadata or referenced app assets
 - UI copy that changes product meaning
 - auth/session behavior
 - payment confirmation behavior

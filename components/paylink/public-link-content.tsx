@@ -179,7 +179,6 @@ function AddressDetailBlock({
 
 export function PublicLinkPaidState({
   copiedKey,
-  creatorIdentity,
   link,
   onCopy,
   paidViewMode,
@@ -187,7 +186,6 @@ export function PublicLinkPaidState({
   txUrl,
 }: {
   copiedKey: string | null;
-  creatorIdentity: IdentityPresentation;
   link: PublicPaymentLink;
   onCopy: (key: string, value: string) => Promise<void>;
   paidViewMode: "payer" | "creator" | "generic";
@@ -237,10 +235,10 @@ export function PublicLinkPaidState({
                     }
                   />
                   <AddressDetailBlock
-                    address={link.payerAddress}
+                    address={link.walletAddress}
                     copiedKey={copiedKey}
-                    copyKey="payer-address"
-                    label="Payer address"
+                    copyKey="recipient-address"
+                    label="Recipient address"
                     onCopy={onCopy}
                   />
                 </>
@@ -338,10 +336,10 @@ export function PublicLinkPaidState({
                   }
                 />
                 <AddressDetailBlock
-                  address={link.payerAddress}
+                  address={link.walletAddress}
                   copiedKey={copiedKey}
-                  copyKey="payer-address"
-                  label="Payer address"
+                  copyKey="recipient-address"
+                  label="Recipient address"
                   onCopy={onCopy}
                 />
               </>
@@ -406,7 +404,6 @@ export function PublicLinkPaidState({
         </p>
 
         <dl className="mt-6 space-y-4 rounded-[22px] border border-border-secondary bg-bg-primary/60 p-4">
-          <DetailRow label="Wallet">{creatorIdentity.primary}</DetailRow>
           <DetailRow label="Amount">{formatAmount(link.amountUsdc)} USDC</DetailRow>
           {link.payerAddress ? (
             <>
@@ -423,10 +420,10 @@ export function PublicLinkPaidState({
                 }
               />
               <AddressDetailBlock
-                address={link.payerAddress}
+                address={link.walletAddress}
                 copiedKey={copiedKey}
-                copyKey="payer-address"
-                label="Payer address"
+                copyKey="recipient-address"
+                label="Recipient address"
                 onCopy={onCopy}
               />
             </>

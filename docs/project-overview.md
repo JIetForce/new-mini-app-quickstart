@@ -26,6 +26,7 @@ The product avoids more complex features so the core payment path stays understa
 Included today:
 - Base App / Base Mini App embedded usage
 - fixed-amount one-time USDC links on Base mainnet
+- home page configured as the app's canonical discovery/share surface
 - owner wallet and receiving wallet are the same address in the current product
 - server-verified wallet session for owner-only flows
 - creator display metadata captured from Mini App context when available
@@ -155,17 +156,37 @@ If the link is already paid, the UI now adapts the receipt state:
 
 - `/`
   - marketing/summary page for the MVP
+  - canonical discovery/share surface for distribution
 - `/create`
   - owner action for link creation
+  - marked `noindex`
 - `/my-links`
   - owner-scoped history page
+  - marked `noindex`
 - `/r/[slug]`
   - public payment page
+  - marked `noindex`
 
 ### Manifest Route
 
 - `/.well-known/farcaster.json`
   - serves the current Mini App manifest from [`farcaster.config.ts`](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/farcaster.config.ts)
+  - uses the canonical app URL as the source for manifest URLs
+
+## Current Distribution and Discovery Metadata
+
+The repo now includes a distribution-focused metadata surface:
+- `/` is the intended share/discovery entry page
+- `app/layout.tsx` publishes canonical Open Graph and Twitter metadata
+- `app/page.tsx` publishes Mini App launch metadata
+- `public/distribution/` contains dedicated manifest/discovery assets
+
+Current manifest behavior:
+- `canonicalDomain` is derived from the canonical app URL host
+- `requiredChains` is pinned to Base mainnet
+- `baseBuilder.ownerAddress` is included only when `BASE_BUILDER_OWNER_ADDRESS` is set
+- `webhookUrl` is intentionally omitted because the repo does not implement webhook notifications
+- account association remains environment-specific and must match the real production domain
 
 ### Auth API Routes
 
@@ -352,6 +373,7 @@ Required:
 Recommended in deployed environments:
 - `NEXT_PUBLIC_URL`
 - `BASENAME_RPC_URL`
+- `BASE_BUILDER_OWNER_ADDRESS` (optional)
 
 Optional deployment fallbacks used by `getAppUrl()`:
 - `VERCEL_PROJECT_PRODUCTION_URL`
@@ -361,6 +383,10 @@ Notes:
 - `SUPABASE_SECRET_KEY` is used only on the server
 - no browser Supabase client exists in the current app
 - `BASENAME_RPC_URL` is optional and is used only for display-only reverse name resolution reliability
+- `BASE_BUILDER_OWNER_ADDRESS`, when present, is used only for optional manifest builder metadata
+
+Distribution note:
+- repo code can make the app technically ready for distribution, but final publishing still requires a real production HTTPS domain, matching account association for that domain, and external validation in Base/Farcaster tooling
 
 ## What Must Be Tested in Base App / Base Preview
 
