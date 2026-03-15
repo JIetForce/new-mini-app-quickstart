@@ -2,9 +2,11 @@ import type { Address } from "viem";
 import { getAddress, isAddress, isHex } from "viem";
 
 export const PAY_LINK_SESSION_COOKIE = "pay_link_session";
+export const PAY_LINK_PRE_AUTH_COOKIE = "pay_link_pre_auth";
 export const PAY_LINK_CHAIN_ID = 8453;
 export const PAY_LINK_CHAIN_HEX = "0x2105";
 export const NONCE_TTL_MS = 10 * 60 * 1000;
+export const PRE_AUTH_STATE_TTL_MS = NONCE_TTL_MS;
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const SIWE_FUTURE_SKEW_MS = 5 * 60 * 1000;
 

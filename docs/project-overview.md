@@ -196,8 +196,9 @@ Current manifest behavior:
   - reads the current wallet session cookie
 - `GET /api/auth/nonce`
   - creates and stores a one-time SIWE nonce
+  - refreshes a signed pre-auth cookie that binds the challenge to the requesting browser state
 - `POST /api/auth/verify`
-  - verifies the signed SIWE message and sets the wallet session cookie
+  - verifies the signed SIWE message, requires the matching pre-auth cookie, and sets the wallet session cookie
 
 ### Payment Link API Routes
 
@@ -227,15 +228,19 @@ Browser-side flow:
 
 Server-side flow:
 1. parse the SIWE message
-2. validate address/domain/nonce/chain/time fields
+2. validate address/domain/nonce/chain/time fields against the canonical allowed auth origins
+3. require the matching signed pre-auth cookie from the same browser that requested the nonce
 3. verify the signature with a Base mainnet public client
-4. consume the nonce once
-5. set an `httpOnly` signed cookie named `pay_link_session`
+4. consume the nonce once only when both `nonce` and `state_hash` match
+5. clear the pre-auth cookie
+6. set an `httpOnly` signed cookie named `pay_link_session`
 
 Important auth constraints:
 - Mini App context is not used as an auth credential
 - FID, username, and display name are not used for ownership checks
 - the session cookie is the authority for owner-only routes
+- the nonce cannot be redeemed from a different browser state than the one that originally requested it
+- SIWE origin validation is strict by default against the canonical app URL and any explicit allowlist entries
 
 ## Current Display Identity Strategy
 
@@ -349,7 +354,7 @@ Stores payment-status observations and helps prevent duplicate success states:
 
 ### `wallet_auth_nonces`
 
-Stores one-time SIWE nonces used during session creation.
+Stores one-time SIWE nonces used during session creation, plus a hash of the short-lived pre-auth browser state that requested them.
 
 ## Important Constraints
 
@@ -374,6 +379,7 @@ Required:
 
 Recommended in deployed environments:
 - `NEXT_PUBLIC_URL`
+- `PAY_LINK_ALLOWED_AUTH_ORIGINS`
 - `BASENAME_RPC_URL`
 - `BASE_BUILDER_OWNER_ADDRESS` (optional)
 
@@ -384,8 +390,13 @@ Optional deployment fallbacks used by `getAppUrl()`:
 Notes:
 - `SUPABASE_SECRET_KEY` is used only on the server
 - no browser Supabase client exists in the current app
+- `PAY_LINK_ALLOWED_AUTH_ORIGINS` is an optional comma-separated allowlist of extra origins that may complete SIWE auth in addition to the canonical app URL
 - `BASENAME_RPC_URL` is optional and is used only for display-only reverse name resolution reliability
 - `BASE_BUILDER_OWNER_ADDRESS`, when present, is used only for optional manifest builder metadata
+
+Security hardening note:
+- repo code now includes a visible baseline CSP/security-header policy and best-effort in-app rate limits for expensive public routes
+- durable protection against abuse still depends on edge/CDN/platform rate limits outside the repo
 
 Distribution note:
 - repo code can make the app technically ready for distribution, but final publishing still requires a real production HTTPS domain, matching account association for that domain, and external validation in Base/Farcaster tooling

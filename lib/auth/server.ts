@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
@@ -10,11 +10,13 @@ import {
   validateSiweMessage,
 } from "viem/siwe";
 
-import { getAppUrl, getRequiredEnv } from "@/lib/env";
+import { getAppUrl, getOptionalEnv, getRequiredEnv } from "@/lib/env";
 import {
   NONCE_TTL_MS,
+  PAY_LINK_PRE_AUTH_COOKIE,
   PAY_LINK_CHAIN_ID,
   PAY_LINK_SESSION_COOKIE,
+  PRE_AUTH_STATE_TTL_MS,
   SESSION_TTL_MS,
   SIWE_FUTURE_SKEW_MS,
   type VerifyWalletSessionInput,
@@ -34,12 +36,25 @@ const publicClient = createPublicClient({
 
 type WalletAuthNonceRecord = {
   nonce: string;
+  state_hash: string | null;
   expires_at: string;
   consumed_at: string | null;
   created_at: string;
 };
 
 type ConsumeNonceResponse = boolean;
+
+type PreAuthStateCookie = {
+  state: string;
+  issuedAt: string;
+  expiresAt: string;
+};
+
+type AllowedAuthOrigin = {
+  domain: string;
+  origin: string;
+  scheme: string;
+};
 
 export class WalletAuthError extends Error {
   constructor(message: string, readonly status: number) {
@@ -64,9 +79,9 @@ function decodeCookieData(value: string): string {
   return Buffer.from(value, "base64url").toString("utf8");
 }
 
-function signCookiePayload(payload: string): string {
+function signCookiePayload(kind: "session" | "preauth", payload: string): string {
   return createHmac("sha256", getSessionSecret())
-    .update(payload)
+    .update(`${kind}.${payload}`)
     .digest("base64url");
 }
 
@@ -81,7 +96,18 @@ function safeEqual(left: string, right: string): boolean {
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function parseSessionCookie(value: string | undefined): WalletSession | null {
+function buildSignedCookieValue(
+  kind: "session" | "preauth",
+  payload: string,
+): string {
+  const signature = signCookiePayload(kind, payload);
+  return `${payload}.${signature}`;
+}
+
+function parseSignedCookiePayload(
+  kind: "session" | "preauth",
+  value: string | undefined,
+): string | null {
   if (!value) {
     return null;
   }
@@ -92,9 +118,19 @@ function parseSessionCookie(value: string | undefined): WalletSession | null {
     return null;
   }
 
-  const expectedSignature = signCookiePayload(payload);
+  const expectedSignature = signCookiePayload(kind, payload);
 
   if (!safeEqual(signature, expectedSignature)) {
+    return null;
+  }
+
+  return payload;
+}
+
+function parseSessionCookie(value: string | undefined): WalletSession | null {
+  const payload = parseSignedCookiePayload("session", value);
+
+  if (!payload) {
     return null;
   }
 
@@ -124,41 +160,164 @@ function parseSessionCookie(value: string | undefined): WalletSession | null {
 
 function serializeSessionCookie(session: WalletSession): string {
   const payload = encodeCookieData(JSON.stringify(session));
-  const signature = signCookiePayload(payload);
-
-  return `${payload}.${signature}`;
+  return buildSignedCookieValue("session", payload);
 }
 
-function resolveExpectedOrigin(request: NextRequest): {
-  domain: string;
-  origin: string;
-  scheme: string;
-} {
-  const appUrl = new URL(getAppUrl());
-  const forwardedProto =
-    request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
-  const forwardedHost =
-    request.headers.get("x-forwarded-host") ??
-    request.headers.get("host") ??
-    request.nextUrl.host ??
-    appUrl.host;
-  const scheme = forwardedProto.replace(":", "") || appUrl.protocol.replace(":", "");
-  const domain = forwardedHost || appUrl.host;
+function hashPreAuthState(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function createPreAuthStateToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+function parsePreAuthCookie(value: string | undefined): PreAuthStateCookie | null {
+  const payload = parseSignedCookiePayload("preauth", value);
+
+  if (!payload) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decodeCookieData(payload)) as PreAuthStateCookie;
+    const issuedAt = new Date(parsed.issuedAt);
+    const expiresAt = new Date(parsed.expiresAt);
+
+    if (
+      typeof parsed.state !== "string" ||
+      !parsed.state ||
+      Number.isNaN(issuedAt.getTime()) ||
+      Number.isNaN(expiresAt.getTime()) ||
+      expiresAt.getTime() <= Date.now()
+    ) {
+      return null;
+    }
+
+    return {
+      state: parsed.state,
+      issuedAt: issuedAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function serializePreAuthCookie(value: PreAuthStateCookie): string {
+  const payload = encodeCookieData(JSON.stringify(value));
+  return buildSignedCookieValue("preauth", payload);
+}
+
+function createPreAuthCookie(
+  state: string,
+  ttlMs = PRE_AUTH_STATE_TTL_MS,
+): PreAuthStateCookie {
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + ttlMs);
 
   return {
-    domain,
-    origin: `${scheme}://${domain}`,
-    scheme,
+    state,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
   };
+}
+
+function getOrCreatePreAuthCookie(request: NextRequest): PreAuthStateCookie {
+  const existing = parsePreAuthCookie(
+    request.cookies.get(PAY_LINK_PRE_AUTH_COOKIE)?.value,
+  );
+
+  if (!existing) {
+    return createPreAuthCookie(createPreAuthStateToken());
+  }
+
+  return createPreAuthCookie(existing.state);
+}
+
+function parseAllowedOrigin(value: string, fieldName: string): AllowedAuthOrigin {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${fieldName} must contain valid absolute URL origins.`);
+  }
+
+  return {
+    domain: url.host,
+    origin: url.origin,
+    scheme: url.protocol.replace(":", ""),
+  };
+}
+
+function getAllowedAuthOrigins(): AllowedAuthOrigin[] {
+  const configuredOrigins = [getAppUrl()];
+  const extraOrigins = (getOptionalEnv("PAY_LINK_ALLOWED_AUTH_ORIGINS") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+
+  return [...configuredOrigins, ...extraOrigins].map((value, index) => {
+    const origin = parseAllowedOrigin(
+      value,
+      index === 0 ? "NEXT_PUBLIC_URL" : "PAY_LINK_ALLOWED_AUTH_ORIGINS",
+    );
+
+    if (seen.has(origin.origin)) {
+      return null;
+    }
+
+    seen.add(origin.origin);
+    return origin;
+  }).filter((value): value is AllowedAuthOrigin => Boolean(value));
+}
+
+function resolveAllowedAuthOrigin(uri: string): AllowedAuthOrigin {
+  let parsedUri: URL;
+
+  try {
+    parsedUri = new URL(uri);
+  } catch {
+    throw new WalletAuthError("SIWE URI is invalid for this app origin.", 400);
+  }
+
+  const allowedOrigin = getAllowedAuthOrigins().find(
+    (origin) => origin.origin === parsedUri.origin,
+  );
+
+  if (!allowedOrigin) {
+    throw new WalletAuthError("SIWE URI is invalid for this app origin.", 400);
+  }
+
+  return allowedOrigin;
+}
+
+function requirePreAuthCookie(request: NextRequest): PreAuthStateCookie {
+  const cookie = parsePreAuthCookie(
+    request.cookies.get(PAY_LINK_PRE_AUTH_COOKIE)?.value,
+  );
+
+  if (!cookie) {
+    throw new WalletAuthError(
+      "Wallet sign-in must start from the same browser that requested the challenge.",
+      401,
+    );
+  }
+
+  return cookie;
 }
 
 async function fetchWalletAuthNonce(
   nonce: string,
+  stateHash: string,
 ): Promise<WalletAuthNonceRecord | null> {
   const rows = await supabaseAdminRequest<WalletAuthNonceRecord[]>(
     `/wallet_auth_nonces?${buildQuery({
       select: "*",
       nonce: `eq.${nonce}`,
+      state_hash: `eq.${stateHash}`,
       consumed_at: "is.null",
       limit: "1",
     })}`,
@@ -222,6 +381,18 @@ export function clearWalletSession(response: NextResponse): void {
   response.cookies.set(PAY_LINK_SESSION_COOKIE, "", {
     expires: new Date(0),
     httpOnly: true,
+    maxAge: 0,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
+export function clearPreAuthState(response: NextResponse): void {
+  response.cookies.set(PAY_LINK_PRE_AUTH_COOKIE, "", {
+    expires: new Date(0),
+    httpOnly: true,
+    maxAge: 0,
     path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -245,25 +416,57 @@ export function setWalletSession(
   response.cookies.set(PAY_LINK_SESSION_COOKIE, serializeSessionCookie(session), {
     expires: new Date(session.expiresAt),
     httpOnly: true,
+    maxAge: Math.max(
+      0,
+      Math.floor((new Date(session.expiresAt).getTime() - Date.now()) / 1000),
+    ),
     path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
 }
 
-export async function createWalletAuthNonce(): Promise<string> {
+export function setPreAuthState(
+  response: NextResponse,
+  preAuthState: PreAuthStateCookie,
+): void {
+  response.cookies.set(
+    PAY_LINK_PRE_AUTH_COOKIE,
+    serializePreAuthCookie(preAuthState),
+    {
+      expires: new Date(preAuthState.expiresAt),
+      httpOnly: true,
+      maxAge: Math.max(
+        0,
+        Math.floor((new Date(preAuthState.expiresAt).getTime() - Date.now()) / 1000),
+      ),
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
+  );
+}
+
+export async function createWalletAuthNonce(
+  request: NextRequest,
+): Promise<{ nonce: string; preAuthState: PreAuthStateCookie }> {
   const nonce = generateSiweNonce();
   const expiresAt = new Date(Date.now() + NONCE_TTL_MS).toISOString();
+  const preAuthState = getOrCreatePreAuthCookie(request);
 
   await supabaseAdminRequest("/wallet_auth_nonces", {
     method: "POST",
     body: JSON.stringify({
       nonce,
+      state_hash: hashPreAuthState(preAuthState.state),
       expires_at: expiresAt,
     }),
   });
 
-  return nonce;
+  return {
+    nonce,
+    preAuthState,
+  };
 }
 
 export async function verifyWalletSession(
@@ -291,29 +494,22 @@ export async function verifyWalletSession(
   assertIssuedAt(parsed.issuedAt, now);
 
   const expectedAddress = input.address ?? normalizeWalletAddress(parsed.address);
-  const expectedOrigin = resolveExpectedOrigin(request);
+  const preAuthState = requirePreAuthCookie(request);
+  const matchedOrigin = resolveAllowedAuthOrigin(parsed.uri ?? "");
   const nonce = typeof parsed.nonce === "string" ? parsed.nonce.trim() : "";
-
-  try {
-    if (!parsed.uri || new URL(parsed.uri).origin !== expectedOrigin.origin) {
-      throw new WalletAuthError("SIWE URI is invalid for this app origin.", 400);
-    }
-  } catch (error) {
-    if (error instanceof WalletAuthError) {
-      throw error;
-    }
-
-    throw new WalletAuthError("SIWE URI is invalid for this app origin.", 400);
-  }
 
   if (!nonce) {
     throw new WalletAuthError("SIWE nonce is missing.", 400);
   }
 
-  const nonceRecord = await fetchWalletAuthNonce(nonce);
+  const stateHash = hashPreAuthState(preAuthState.state);
+  const nonceRecord = await fetchWalletAuthNonce(nonce, stateHash);
 
   if (!nonceRecord) {
-    throw new WalletAuthError("SIWE nonce is invalid or already used.", 401);
+    throw new WalletAuthError(
+      "SIWE challenge is invalid, expired, already used, or bound to a different browser state.",
+      401,
+    );
   }
 
   if (new Date(nonceRecord.expires_at).getTime() <= now.getTime()) {
@@ -322,10 +518,10 @@ export async function verifyWalletSession(
 
   const isValidMessage = validateSiweMessage({
     address: expectedAddress,
-    domain: expectedOrigin.domain,
+    domain: matchedOrigin.domain,
     message: parsed,
     nonce,
-    scheme: parsed.scheme ? expectedOrigin.scheme : undefined,
+    scheme: parsed.scheme ? matchedOrigin.scheme : undefined,
     time: now,
   });
 
@@ -335,10 +531,10 @@ export async function verifyWalletSession(
 
   const isValidSignature = await publicClient.verifySiweMessage({
     address: expectedAddress,
-    domain: expectedOrigin.domain,
+    domain: matchedOrigin.domain,
     message: input.message,
     nonce,
-    scheme: parsed.scheme ? expectedOrigin.scheme : undefined,
+    scheme: parsed.scheme ? matchedOrigin.scheme : undefined,
     signature: input.signature,
     time: now,
   });
@@ -351,7 +547,10 @@ export async function verifyWalletSession(
     "/rpc/consume_wallet_auth_nonce",
     {
       method: "POST",
-      body: JSON.stringify({ p_nonce: nonce }),
+      body: JSON.stringify({
+        p_nonce: nonce,
+        p_state_hash: stateHash,
+      }),
     },
   );
 

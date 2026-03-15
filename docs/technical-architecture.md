@@ -41,7 +41,9 @@
 - Supabase REST API accessed through a server-only helper
 - no browser Supabase client
 - signed `httpOnly` cookie session for wallet ownership
+- signed `httpOnly` pre-auth cookie for SIWE challenge binding
 - server-side SIWE verification
+- lightweight in-memory route limiter for expensive public endpoints
 
 ## Major Directories
 
@@ -130,13 +132,14 @@ Browser:
 - on confirmation, it builds a SIWE message and signs it with wagmi `useSignMessage`
 
 Server:
+- `/api/auth/nonce` issues a nonce and refreshes a signed pre-auth browser-state cookie
 - `/api/auth/verify` parses and validates the SIWE message
 - `lib/auth/server.ts` verifies the signature and consumes the nonce
 - the route sets the signed cookie session
 
 Database:
-- `wallet_auth_nonces` stores issued nonces
-- RPC `consume_wallet_auth_nonce(text)` invalidates the nonce once
+- `wallet_auth_nonces` stores issued nonces plus a hash of the pre-auth browser state
+- RPC `consume_wallet_auth_nonce(text, text)` invalidates the nonce once only when both nonce and state hash match
 
 ### Create link
 
@@ -252,6 +255,55 @@ The cookie payload contains:
 - `issuedAt`
 - `expiresAt`
 
+Pre-auth cookie:
+- name: `pay_link_pre_auth`
+- type: signed payload containing a random browser-state token
+- flags:
+  - `httpOnly`
+  - `sameSite=lax`
+  - `secure` in production
+  - 10-minute TTL
+- purpose:
+  - binds a fetched SIWE nonce to the same browser that requested it
+  - prevents redeeming a valid nonce/signature from a different browser state
+
+## Canonical Auth Origin Policy
+
+Current behavior:
+- SIWE verification no longer trusts arbitrary request host or forwarded-proto headers
+- the canonical auth origin is derived from `NEXT_PUBLIC_URL` / `getAppUrl()`
+- additional auth origins are accepted only when explicitly listed in `PAY_LINK_ALLOWED_AUTH_ORIGINS`
+
+Operational note:
+- local preview or alternate deploy domains must be added explicitly if they need to support SIWE auth
+
+## Route-Level Abuse Controls
+
+Current implementation:
+- `lib/security/rate-limit.ts` provides a best-effort in-memory limiter keyed by route + client IP
+- the limiter is currently applied to:
+  - `/api/auth/nonce`
+  - `/api/links/[slug]/confirm`
+  - `/api/identity/resolve`
+
+Important limitation:
+- this limiter is per-process and is not a durable distributed rate-limit solution
+- production still needs edge/CDN/platform throttling for strong abuse resistance
+
+## Security Headers and CSP
+
+Current implementation:
+- `next.config.ts` now sets a repo-visible baseline header policy
+- included headers:
+  - `Content-Security-Policy`
+  - `X-Content-Type-Options: nosniff`
+  - `Referrer-Policy: no-referrer`
+  - `Permissions-Policy`
+
+Important limitation:
+- `frame-ancestors` / `X-Frame-Options` are intentionally not hardcoded here because the app must continue to work in embedded Mini App surfaces
+- those embed restrictions must be finalized against the real deployment/platform requirements rather than guessed in repo code
+
 ## Manifest and Discovery Wiring
 
 Current distribution-facing implementation:
@@ -291,8 +343,8 @@ Current intention:
 - server-side secret-key path remains the operational access path
 
 Current RPCs:
-- `consume_wallet_auth_nonce(text)`
-  - one-time nonce invalidation
+- `consume_wallet_auth_nonce(text, text)`
+  - one-time nonce invalidation bound to `nonce + state_hash`
 - `finalize_payment_link_success(text, text, text, timestamptz)`
   - transactional successful-payment finalization
 
@@ -302,6 +354,7 @@ The repo uses additive SQL migrations:
 - [20260309_add_payment_link_creator_metadata.sql](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/supabase/migrations/20260309_add_payment_link_creator_metadata.sql)
 - [20260309_add_payment_link_payer_address.sql](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/supabase/migrations/20260309_add_payment_link_payer_address.sql)
 - [20260313_harden_auth_and_payments.sql](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/supabase/migrations/20260313_harden_auth_and_payments.sql)
+- [20260315_bind_wallet_auth_nonce_state.sql](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/supabase/migrations/20260315_bind_wallet_auth_nonce_state.sql)
 
 The base table creation for `payment_links` and `payment_attempts` is assumed to exist already in the live project.
 

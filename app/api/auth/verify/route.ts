@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  clearPreAuthState,
   createWalletSession,
   mapSupabaseAuthError,
   setWalletSession,
@@ -15,6 +16,8 @@ export async function POST(request: NextRequest) {
     const address = await verifyWalletSession(request, body);
     const session = createWalletSession(address);
     const response = NextResponse.json({ session });
+
+    clearPreAuthState(response);
     setWalletSession(response, session);
 
     return response;
@@ -22,10 +25,14 @@ export async function POST(request: NextRequest) {
     const authError = mapSupabaseAuthError(error);
 
     if (authError) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { message: authError.message },
         { status: authError.status },
       );
+
+      clearPreAuthState(response);
+
+      return response;
     }
 
     return NextResponse.json(

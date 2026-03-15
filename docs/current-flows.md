@@ -14,12 +14,13 @@ Create a server-verified wallet session for owner-only actions such as creating 
 2. It prefetches:
    - `GET /api/auth/session`
    - `GET /api/auth/nonce`
-3. If the user chooses to confirm ownership:
+3. `GET /api/auth/nonce` sets a short-lived signed `httpOnly` pre-auth cookie.
+4. If the user chooses to confirm ownership:
    - the hook reads the current wagmi wallet address from `useAccount()`
    - if no address is connected yet, it connects with the available connector
    - it builds a SIWE message with `createSiweMessage()`
    - it signs that message with wagmi `useSignMessage()`
-4. The browser sends `{ address, message, signature }` to `POST /api/auth/verify`.
+5. The browser sends `{ address, message, signature }` to `POST /api/auth/verify`.
 
 ### Server
 
@@ -29,22 +30,32 @@ Create a server-verified wallet session for owner-only actions such as creating 
    - version
    - chain id = 8453
    - nonce
-   - origin / domain / scheme
+   - canonical origin / domain / scheme
    - issued-at / expiration / not-before checks
-3. It verifies the signature with a Base mainnet public client.
-4. It consumes the nonce with the Supabase RPC.
-5. It creates a signed `pay_link_session` cookie.
+3. It requires the matching signed pre-auth cookie from the same browser that requested the nonce.
+4. It verifies the signature with a Base mainnet public client.
+5. It consumes the nonce with the Supabase RPC using `nonce + state_hash`.
+6. It creates a signed `pay_link_session` cookie and clears the pre-auth cookie.
 
 ### Database
 
-1. `wallet_auth_nonces` stores the generated nonce.
-2. `consume_wallet_auth_nonce` marks it as consumed exactly once.
+1. `wallet_auth_nonces` stores the generated nonce and a hash of the pre-auth browser state.
+2. `consume_wallet_auth_nonce` marks it as consumed exactly once only when both `nonce` and `state_hash` match.
 
 ### Result
 
 - Owner-only routes can now derive the wallet owner from the session cookie.
 - The connected wallet address and session wallet may still diverge later, so the UI checks for mismatch.
 - The same connected wallet is also used for viewer-specific paid-state detection on the public payment page.
+
+### Common Failure Paths
+
+- Nonce fetched in one browser and redeemed in another:
+  - server returns 401 because the pre-auth cookie state does not match
+- Origin/domain mismatch:
+  - server returns 400 because the SIWE message origin is not in the canonical origin set or explicit allowlist
+- Reused or expired nonce:
+  - server returns 401 and the UI must fetch a fresh challenge
 
 ## 2. Create-Link Flow
 
@@ -210,6 +221,7 @@ Turn a public payment attempt into a server-verified, database-persisted paid li
 3. Base Pay returns a `paymentId`.
 4. The client optionally calls `getPaymentStatus()` for immediate UX.
 5. The client sends only `{ paymentId }` to `POST /api/links/[slug]/confirm`.
+6. The confirm route is best-effort rate limited per client IP and slug.
 
 #### Server
 
@@ -296,7 +308,8 @@ Database:
 ### Server-Only Responsibilities
 
 - validating owner session cookies
-- issuing and consuming SIWE nonces
+- issuing SIWE nonces bound to a signed pre-auth browser state
+- consuming SIWE nonces only when the nonce and state hash both match
 - verifying signed SIWE messages
 - creating links
 - loading public links from the database
@@ -304,6 +317,7 @@ Database:
 - verifying payment status against stored business data
 - finalizing paid state
 - resolving Basenames on the server for display-only identity labels
+- applying best-effort route-level abuse limits for expensive public endpoints
 
 ### Database Responsibilities
 
@@ -313,3 +327,14 @@ Database:
 - enforce RLS on exposed tables
 - enforce uniqueness and idempotency constraints
 - run transactional finalize logic for success cases
+
+## 7. Abuse Controls
+
+Current repo-level protection:
+- `GET /api/auth/nonce` is rate limited because it creates DB-backed auth challenges
+- `POST /api/links/[slug]/confirm` is rate limited because it triggers Base Pay verification and DB writes
+- `POST /api/identity/resolve` is rate limited because it triggers reverse-name lookups
+
+Important limitation:
+- the current limiter is an in-memory best-effort safeguard inside the app runtime
+- durable protection for production still depends on edge/CDN/platform throttling outside the repo
