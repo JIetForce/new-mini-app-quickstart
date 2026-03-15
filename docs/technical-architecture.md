@@ -29,6 +29,10 @@
   - access to Mini App context for display metadata and safe-area data
 - `@farcaster/miniapp-wagmi-connector`
   - embedded Mini App wallet connector
+- wagmi connectors in current use
+  - `baseAccount()` when the Base Account / smart-wallet path is available
+  - `injected()` as the standard EIP-1193 fallback for normal browsers and embedded contexts where `wallet_connect` is unsupported
+  - `farcasterMiniApp()` remains available for Mini App environments, but the app no longer depends on it as the only embedded connect path
 - `@base-org/account`
   - Base Pay `pay()`
   - Base Pay `getPaymentStatus()`
@@ -130,6 +134,7 @@
 Browser:
 - `useWalletSession()` preloads `/api/auth/session` and `/api/auth/nonce`
 - on confirmation, it builds a SIWE message and signs it with wagmi `useSignMessage`
+- if connector-based connect or sign hits `wallet_connect` unsupported errors, the hook falls back to the standard browser-provider path
 
 Server:
 - `/api/auth/nonce` issues a nonce and refreshes a signed pre-auth browser-state cookie
@@ -299,10 +304,18 @@ Current implementation:
   - `X-Content-Type-Options: nosniff`
   - `Referrer-Policy: no-referrer`
   - `Permissions-Policy`
+- the CSP `frame-ancestors` directive is now explicit and env-driven
 
-Important limitation:
-- `frame-ancestors` / `X-Frame-Options` are intentionally not hardcoded here because the app must continue to work in embedded Mini App surfaces
-- those embed restrictions must be finalized against the real deployment/platform requirements rather than guessed in repo code
+Current `frame-ancestors` policy:
+- production default: `'self'`
+- local development default: `'self' http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*`
+- external embedding origins are accepted only when explicitly listed in `PAY_LINK_ALLOWED_FRAME_ANCESTORS`
+- `PAY_LINK_ALLOWED_FRAME_ANCESTORS` accepts a comma-separated or space-separated list
+- only sanitized `http(s)://host[:port]` or `http(s)://*.host[:port]` sources are accepted; malformed entries are ignored
+
+Operational note:
+- production Base/Farcaster embedding now requires setting `PAY_LINK_ALLOWED_FRAME_ANCESTORS` to the exact trusted embed origins for the deployment
+- the repo intentionally does not guess those production origins
 
 ## Manifest and Discovery Wiring
 

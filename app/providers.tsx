@@ -8,17 +8,36 @@ import {
   useConnect,
   WagmiProvider,
 } from "wagmi";
-import { baseAccount } from "wagmi/connectors";
+import { baseAccount, injected } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { MiniAppProvider } from "./providers/MiniAppProvider";
 import { useMiniApp } from "./providers/MiniAppProvider";
 import { farcasterConfig } from "@/farcaster.config";
 
+type BrowserEthereumProvider = {
+  request(args: {
+    method: string;
+    params?: readonly unknown[] | Record<string, unknown>;
+  }): Promise<unknown>;
+};
+
+function isBrowserEthereumProvider(
+  value: unknown,
+): value is BrowserEthereumProvider {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "request" in value &&
+      typeof value.request === "function",
+  );
+}
+
 const config = createConfig({
   chains: [base],
   transports: { [base.id]: http() },
   connectors: [
+    injected(),
     farcasterMiniApp(),
     baseAccount({
       appName: farcasterConfig.miniapp.name,
@@ -44,19 +63,35 @@ function MiniAppWalletBootstrap() {
       return;
     }
 
-    const farcasterConnector = connectors.find(
-      (connector) => connector.id === "farcaster",
+    hasAttemptedConnection.current = true;
+
+    const injectedConnector = connectors.find(
+      (connector) => connector.id === "injected",
     );
 
-    if (!farcasterConnector) {
+    if (!injectedConnector) {
       return;
     }
 
-    hasAttemptedConnection.current = true;
+    void (async () => {
+      try {
+        const provider = await injectedConnector.getProvider();
 
-    void connectAsync({ connector: farcasterConnector }).catch(() => {
-      hasAttemptedConnection.current = false;
-    });
+        if (!isBrowserEthereumProvider(provider)) {
+          return;
+        }
+
+        const accounts = await provider.request({
+          method: "eth_accounts",
+        });
+
+        if (Array.isArray(accounts) && accounts.some(Boolean)) {
+          await connectAsync({ connector: injectedConnector });
+        }
+      } catch {
+        // Best-effort only: embedded auth must still work from explicit user action.
+      }
+    })();
   }, [
     address,
     connectAsync,

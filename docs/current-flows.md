@@ -17,9 +17,11 @@ Create a server-verified wallet session for owner-only actions such as creating 
 3. `GET /api/auth/nonce` sets a short-lived signed `httpOnly` pre-auth cookie.
 4. If the user chooses to confirm ownership:
    - the hook reads the current wagmi wallet address from `useAccount()`
-   - if no address is connected yet, it connects with the available connector
+   - if no address is connected yet, it first tries the configured wagmi connectors
+   - if a connector path fails because `wallet_connect` is unsupported, it falls back to the standard EIP-1193 path (`eth_requestAccounts` + normal message signing)
    - it builds a SIWE message with `createSiweMessage()`
    - it signs that message with wagmi `useSignMessage()`
+   - if signing through the active connector fails because `wallet_connect` is unsupported, it falls back to `personal_sign` through the browser provider
 5. The browser sends `{ address, message, signature }` to `POST /api/auth/verify`.
 
 ### Server
@@ -56,6 +58,8 @@ Create a server-verified wallet session for owner-only actions such as creating 
   - server returns 400 because the SIWE message origin is not in the canonical origin set or explicit allowlist
 - Reused or expired nonce:
   - server returns 401 and the UI must fetch a fresh challenge
+- Connector does not support `wallet_connect`:
+  - the client falls back to a standard injected/EIP-1193 wallet path instead of failing auth immediately
 
 ## 2. Create-Link Flow
 

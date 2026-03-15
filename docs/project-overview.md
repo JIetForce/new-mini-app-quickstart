@@ -380,6 +380,7 @@ Required:
 Recommended in deployed environments:
 - `NEXT_PUBLIC_URL`
 - `PAY_LINK_ALLOWED_AUTH_ORIGINS`
+- `PAY_LINK_ALLOWED_FRAME_ANCESTORS`
 - `BASENAME_RPC_URL`
 - `BASE_BUILDER_OWNER_ADDRESS` (optional)
 
@@ -391,11 +392,13 @@ Notes:
 - `SUPABASE_SECRET_KEY` is used only on the server
 - no browser Supabase client exists in the current app
 - `PAY_LINK_ALLOWED_AUTH_ORIGINS` is an optional comma-separated allowlist of extra origins that may complete SIWE auth in addition to the canonical app URL
+- `PAY_LINK_ALLOWED_FRAME_ANCESTORS` is an optional comma-separated or space-separated allowlist of trusted external embedding origins for the CSP `frame-ancestors` directive
 - `BASENAME_RPC_URL` is optional and is used only for display-only reverse name resolution reliability
 - `BASE_BUILDER_OWNER_ADDRESS`, when present, is used only for optional manifest builder metadata
 
 Security hardening note:
 - repo code now includes a visible baseline CSP/security-header policy and best-effort in-app rate limits for expensive public routes
+- production CSP now defaults `frame-ancestors` to `'self'`; external Base/Farcaster embedding must be explicitly allowlisted through `PAY_LINK_ALLOWED_FRAME_ANCESTORS`
 - durable protection against abuse still depends on edge/CDN/platform rate limits outside the repo
 
 Distribution note:

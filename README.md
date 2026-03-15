@@ -42,6 +42,7 @@ Recommended in deployed environments:
 
 - `NEXT_PUBLIC_URL`
 - `PAY_LINK_ALLOWED_AUTH_ORIGINS` (optional comma-separated allowlist for extra auth origins such as preview/dev URLs)
+- `PAY_LINK_ALLOWED_FRAME_ANCESTORS` (optional space- or comma-separated allowlist for external embed origins)
 - `BASE_BUILDER_OWNER_ADDRESS` (optional, only for manifest builder linkage)
 
 ## Validation Commands
@@ -59,7 +60,9 @@ npx tsc --noEmit
 - `/api/auth/nonce` now binds the SIWE nonce to a short-lived signed `httpOnly` pre-auth cookie so the challenge must be redeemed from the same browser that requested it.
 - SIWE origin validation is strict by default against the canonical app URL and can be extended only through `PAY_LINK_ALLOWED_AUTH_ORIGINS`.
 - Public high-cost routes have repo-level best-effort rate limits, but production still needs edge/CDN/platform throttling for durable abuse protection.
-- Repo-visible security headers are defined in `next.config.ts`; `frame-ancestors` is intentionally not locked down there because embedded-platform values must be finalized against the real deployment environment.
+- Repo-visible security headers are defined in `next.config.ts`, including `frame-ancestors`.
+- `frame-ancestors` defaults to `'self'` in production and to `'self'` plus localhost dev origins in local development.
+- If the app must launch inside Base/Farcaster embeds in production, set `PAY_LINK_ALLOWED_FRAME_ANCESTORS` to the exact trusted embedding origins required by those surfaces.
 - Distribution metadata and manifest assets live in `farcaster.config.ts` and `public/distribution/`.
 - `public/distribution/` should contain current live-product assets, not stale design exports.
 - `NEXT_PUBLIC_URL` should point to the final production HTTPS domain before publishing.
