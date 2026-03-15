@@ -67,6 +67,7 @@ npx tsc --noEmit
 - Distribution metadata and manifest assets live in `farcaster.config.ts` and `public/distribution/`.
 - The public payment flow appends ERC-8021 Builder Code attribution to its `wallet_sendCalls` request through a small local helper in `lib/payments/`.
 - `public/distribution/` should contain current live-product assets, not stale design exports.
+- When replacing manifest/discovery images, prefer versioned filenames so Base/Farcaster caches do not keep serving deleted logo URLs.
 - `NEXT_PUBLIC_URL` should point to the final production HTTPS domain before publishing.
 - If the production domain changes, regenerate `accountAssociation` for that exact domain.
 - The manifest intentionally omits `webhookUrl` because the repo does not implement notifications.

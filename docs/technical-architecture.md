@@ -341,6 +341,7 @@ Current manifest details:
 - `webhookUrl` is intentionally omitted because the repo has no webhook route or notification flow
 - `iconUrl` points to a 1024x1024 PNG
 - `splashImageUrl` points to a lightweight 200x200 PNG
+- icon/splash/OG assets should move to versioned filenames when branding changes so external caches do not keep serving deleted logo URLs
 - `screenshotUrls` point to portrait 1284x2778 live-product captures
 
 Current page metadata details:
