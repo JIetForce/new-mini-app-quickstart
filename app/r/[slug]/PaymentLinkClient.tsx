@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { getPaymentStatus, pay } from "@base-org/account";
+import { getPaymentStatus } from "@base-org/account";
 import { CheckCircle2, Copy, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import { useAccount } from "wagmi";
 
@@ -19,6 +19,7 @@ import {
   getIdentityPresentation,
 } from "@/lib/identity/display";
 import { useResolvedNames } from "@/lib/identity/useResolvedNames";
+import { payWithBuilderCode } from "@/lib/payments/client";
 import {
   PAYMENT_LINK_STATUS,
   PAYMENT_ATTEMPT_STATUS,
@@ -156,7 +157,7 @@ export default function PaymentLinkClient({
     setIsPaying(true);
 
     try {
-      const payment = await pay({
+      const payment = await payWithBuilderCode({
         amount: link.amountUsdc,
         to: link.walletAddress,
         testnet: false,

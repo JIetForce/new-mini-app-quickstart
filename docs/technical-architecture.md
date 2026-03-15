@@ -34,8 +34,10 @@
   - `injected()` as the standard EIP-1193 fallback for normal browsers and embedded contexts where `wallet_connect` is unsupported
   - `farcasterMiniApp()` remains available for Mini App environments, but the app no longer depends on it as the only embedded connect path
 - `@base-org/account`
-  - Base Pay `pay()`
   - Base Pay `getPaymentStatus()`
+  - Base Account SDK provider for the public payment `wallet_sendCalls` path
+- `ox`
+  - ERC-8021 Builder Code `dataSuffix` generation
 - `shadcn` / `class-variance-authority` / `tailwind-merge`
   - UI component foundation
 
@@ -107,6 +109,8 @@
 
 - [lib/payment-links/shared.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/lib/payment-links/shared.ts)
 - [lib/payment-links/server.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/lib/payment-links/server.ts)
+- [lib/payments/builder-code.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/lib/payments/builder-code.ts)
+- [lib/payments/client.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/lib/payments/client.ts)
 - [app/api/links/route.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/app/api/links/route.ts)
 - [app/api/links/[slug]/route.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/app/api/links/[slug]/route.ts)
 - [app/api/links/[slug]/confirm/route.ts](/Users/ruslan/repos/AI/codex/base/new-mini-app-quickstart/app/api/links/[slug]/confirm/route.ts)
@@ -177,12 +181,13 @@ Database:
 ### Public payment link
 
 Browser:
-- `/r/[slug]` client component can refresh the link and trigger Base Pay
+- `/r/[slug]` client component can refresh the link and trigger a Base Account `wallet_sendCalls` payment request
 - it derives owner-view vs payer-view vs generic paid view from:
   - connected wallet address
   - verified session wallet
   - verified stored `payer_address`
 - it can render a BaseScan transaction link only when `payment_id` passes the tx-hash guard
+- the payment request explicitly includes ERC-8021 Builder Code attribution via `capabilities.dataSuffix`
 
 Server:
 - server component and `/api/links/[slug]` both load the link through server-only code

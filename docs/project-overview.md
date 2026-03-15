@@ -271,7 +271,8 @@ If the connected wallet and session wallet diverge, the UI prompts the user to c
 ## Current Payment Flow
 
 Client payment initiation:
-- the public link page calls `pay({ amount, to, testnet: false })` from `@base-org/account`
+- the public link page calls a local `payWithBuilderCode({ amount, to, testnet: false })` helper
+- that helper still uses the Base Account SDK payment path, but sends `wallet_sendCalls` with ERC-8021 Builder Code attribution in `capabilities.dataSuffix`
 - the page then calls `getPaymentStatus({ id, testnet: false })` for immediate UX feedback
 
 Server payment confirmation:
@@ -379,6 +380,7 @@ Required:
 
 Recommended in deployed environments:
 - `NEXT_PUBLIC_URL`
+- `NEXT_PUBLIC_BASE_BUILDER_CODE` (optional, defaults to the current app Builder Code)
 - `PAY_LINK_ALLOWED_AUTH_ORIGINS`
 - `PAY_LINK_ALLOWED_FRAME_ANCESTORS`
 - `BASENAME_RPC_URL`
@@ -393,6 +395,7 @@ Notes:
 - no browser Supabase client exists in the current app
 - `PAY_LINK_ALLOWED_AUTH_ORIGINS` is an optional comma-separated allowlist of extra origins that may complete SIWE auth in addition to the canonical app URL
 - `PAY_LINK_ALLOWED_FRAME_ANCESTORS` is an optional comma-separated or space-separated allowlist of trusted external embedding origins for the CSP `frame-ancestors` directive
+- `NEXT_PUBLIC_BASE_BUILDER_CODE` is optional and defaults to the app's current Base Builder Code used to generate the ERC-8021 `dataSuffix` for public payments
 - `BASENAME_RPC_URL` is optional and is used only for display-only reverse name resolution reliability
 - `BASE_BUILDER_OWNER_ADDRESS`, when present, is used only for optional manifest builder metadata
 

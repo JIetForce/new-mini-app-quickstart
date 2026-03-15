@@ -41,6 +41,7 @@ npm run dev
 Recommended in deployed environments:
 
 - `NEXT_PUBLIC_URL`
+- `NEXT_PUBLIC_BASE_BUILDER_CODE` (optional, defaults to the app's current Builder Code)
 - `PAY_LINK_ALLOWED_AUTH_ORIGINS` (optional comma-separated allowlist for extra auth origins such as preview/dev URLs)
 - `PAY_LINK_ALLOWED_FRAME_ANCESTORS` (optional space- or comma-separated allowlist for external embed origins)
 - `BASE_BUILDER_OWNER_ADDRESS` (optional, only for manifest builder linkage)
@@ -64,6 +65,7 @@ npx tsc --noEmit
 - `frame-ancestors` defaults to `'self'` in production and to `'self'` plus localhost dev origins in local development.
 - If the app must launch inside Base/Farcaster embeds in production, set `PAY_LINK_ALLOWED_FRAME_ANCESTORS` to the exact trusted embedding origins required by those surfaces.
 - Distribution metadata and manifest assets live in `farcaster.config.ts` and `public/distribution/`.
+- The public payment flow appends ERC-8021 Builder Code attribution to its `wallet_sendCalls` request through a small local helper in `lib/payments/`.
 - `public/distribution/` should contain current live-product assets, not stale design exports.
 - `NEXT_PUBLIC_URL` should point to the final production HTTPS domain before publishing.
 - If the production domain changes, regenerate `accountAssociation` for that exact domain.
