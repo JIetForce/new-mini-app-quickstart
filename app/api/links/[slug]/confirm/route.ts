@@ -59,10 +59,7 @@ export async function POST(
 
     const response = NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to confirm payment link.",
+        message: "Unable to confirm payment link.",
       },
       { status: 500 },
     );

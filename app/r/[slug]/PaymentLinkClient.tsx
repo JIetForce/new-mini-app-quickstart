@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { getPaymentStatus } from "@base-org/account";
 import { CheckCircle2, Copy, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import { useAccount } from "wagmi";
 
@@ -35,6 +34,14 @@ interface PaymentLinkClientProps {
 interface LinkApiResponse {
   link: PublicPaymentLink;
   shareUrl: string;
+}
+
+interface ConfirmPaymentResponse {
+  attempt?: {
+    status: (typeof PAYMENT_ATTEMPT_STATUS)[keyof typeof PAYMENT_ATTEMPT_STATUS];
+  };
+  link?: PublicPaymentLink;
+  message?: string;
 }
 
 export default function PaymentLinkClient({
@@ -106,7 +113,11 @@ export default function PaymentLinkClient({
     setShareUrl(payload.shareUrl);
   }
 
-  async function confirmPayment(paymentId: string) {
+  async function confirmPayment(
+    paymentId: string,
+  ): Promise<
+    (typeof PAYMENT_ATTEMPT_STATUS)[keyof typeof PAYMENT_ATTEMPT_STATUS]
+  > {
     const response = await fetch(`/api/links/${link.slug}/confirm`, {
       method: "POST",
       headers: {
@@ -117,38 +128,30 @@ export default function PaymentLinkClient({
       }),
     });
 
-    const payload = (await response.json()) as {
-      link?: PublicPaymentLink;
-      message?: string;
-    };
+    const payload = (await response.json()) as ConfirmPaymentResponse;
 
-    if (!response.ok || !payload.link) {
+    if (!response.ok || !payload.link || !payload.attempt?.status) {
       throw new Error(payload.message || "Unable to persist payment status.");
     }
 
     setLink(payload.link);
+    return payload.attempt.status;
   }
 
   async function checkPayment(paymentId: string) {
-    const status = await getPaymentStatus({
-      id: paymentId,
-      testnet: false,
-    });
-
-    await confirmPayment(paymentId);
+    const status = await confirmPayment(paymentId);
     setLastPaymentId(paymentId);
-    setPaymentMessage(status.reason || status.message);
 
     if (
-      status.status === PAYMENT_ATTEMPT_STATUS.FAILED ||
-      status.status === PAYMENT_ATTEMPT_STATUS.NOT_FOUND
+      status === PAYMENT_ATTEMPT_STATUS.FAILED ||
+      status === PAYMENT_ATTEMPT_STATUS.NOT_FOUND
     ) {
-      setError(status.reason || status.message);
-      return status.status;
+      setError("Payment could not be verified for this link.");
+      return status;
     }
 
     setError("");
-    return status.status;
+    return status;
   }
 
   async function handlePay() {

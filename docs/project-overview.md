@@ -102,6 +102,7 @@ Current creator metadata capture:
 - `creator_pfp_url`
 
 Those fields come from Mini App context if available and are stored only for display.
+`creator_pfp_url` is kept as display-only metadata, but the public payment page no longer renders it as a remote image.
 
 ### 3. My Links `/my-links`
 
@@ -273,7 +274,7 @@ If the connected wallet and session wallet diverge, the UI prompts the user to c
 Client payment initiation:
 - the public link page calls a local `payWithBuilderCode({ amount, to, testnet: false })` helper
 - that helper still uses the Base Account SDK payment path, but sends `wallet_sendCalls` with ERC-8021 Builder Code attribution in `capabilities.dataSuffix`
-- the page then calls `getPaymentStatus({ id, testnet: false })` for immediate UX feedback
+- the page then sends only `{ paymentId }` to the confirm route and lets the server re-check payment status
 
 Server payment confirmation:
 - the client sends only `{ paymentId }` to `POST /api/links/[slug]/confirm`

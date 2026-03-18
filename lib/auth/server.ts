@@ -56,6 +56,11 @@ type AllowedAuthOrigin = {
   scheme: string;
 };
 
+const LOCAL_DEV_AUTH_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+] as const;
+
 export class WalletAuthError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -251,7 +256,10 @@ function parseAllowedOrigin(value: string, fieldName: string): AllowedAuthOrigin
 }
 
 function getAllowedAuthOrigins(): AllowedAuthOrigin[] {
-  const configuredOrigins = [getAppUrl()];
+  const configuredOrigins = [
+    getAppUrl(),
+    ...(process.env.NODE_ENV === "production" ? [] : LOCAL_DEV_AUTH_ORIGINS),
+  ];
   const extraOrigins = (getOptionalEnv("PAY_LINK_ALLOWED_AUTH_ORIGINS") ?? "")
     .split(",")
     .map((value) => value.trim())

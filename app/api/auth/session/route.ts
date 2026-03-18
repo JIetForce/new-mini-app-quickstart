@@ -30,10 +30,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to read wallet session.",
+        message: "Unable to read wallet session.",
       },
       { status: 500 },
     );

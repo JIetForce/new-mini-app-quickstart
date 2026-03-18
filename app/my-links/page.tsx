@@ -74,34 +74,29 @@ export default function MyLinksPage() {
   const { names } = useResolvedNames(identityAddresses);
 
   useEffect(() => {
-    setPage(1);
-  }, [statusFilter]);
-
-  useEffect(() => {
     if (!session || sessionMismatch) {
-      setLinks([]);
-      setHasNextPage(false);
-      setError("");
-      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setError("");
+    let cancelled = false;
 
-    const params = new URLSearchParams({
-      page: String(page),
-      pageSize: "10",
-    });
+    void (async () => {
+      setIsLoading(true);
+      setError("");
 
-    if (statusFilter !== "all") {
-      params.set("status", statusFilter);
-    }
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: "10",
+      });
 
-    void fetch(`/api/my-links?${params.toString()}`, {
-      cache: "no-store",
-    })
-      .then(async (response) => {
+      if (statusFilter !== "all") {
+        params.set("status", statusFilter);
+      }
+
+      try {
+        const response = await fetch(`/api/my-links?${params.toString()}`, {
+          cache: "no-store",
+        });
         const payload = (await response.json()) as MyLinksResponse & {
           message?: string;
         };
@@ -110,19 +105,32 @@ export default function MyLinksPage() {
           throw new Error(payload.message || "Unable to load your links.");
         }
 
+        if (cancelled) {
+          return;
+        }
+
         setLinks(payload.links);
         setHasNextPage(payload.hasNextPage);
-      })
-      .catch((requestError) => {
+      } catch (requestError) {
+        if (cancelled) {
+          return;
+        }
+
         setError(
           requestError instanceof Error
             ? requestError.message
             : "Unable to load your links.",
         );
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [page, session, sessionMismatch, statusFilter]);
 
   const stats = useMemo(() => {
@@ -157,6 +165,9 @@ export default function MyLinksPage() {
       : session
         ? "verified"
         : "needs_auth";
+  const visibleLinks = session && !sessionMismatch ? links : [];
+  const visibleHasNextPage = session && !sessionMismatch ? hasNextPage : false;
+  const visibleError = session && !sessionMismatch ? error : "";
 
   async function handleCopyLink(slug: string) {
     try {
@@ -239,15 +250,18 @@ export default function MyLinksPage() {
           </div>
         )}
 
-        {error ? (
+        {visibleError ? (
           <div className="mb-5 rounded-[20px] border border-border-error/40 bg-bg-error-primary px-4 py-3 text-sm text-text-error-primary">
-            {error}
+            {visibleError}
           </div>
         ) : null}
 
         <div className="mb-5">
           <Select
-            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+            onValueChange={(value) => {
+              setStatusFilter(value as StatusFilter);
+              setPage(1);
+            }}
             value={statusFilter}
           >
             <SelectTrigger className="w-full">
@@ -270,7 +284,7 @@ export default function MyLinksPage() {
             </div>
           ) : null}
 
-          {!isLoading && session && !sessionMismatch && links.length === 0 ? (
+          {!isLoading && session && !sessionMismatch && visibleLinks.length === 0 ? (
             <div className="rounded-[24px] border border-border-primary bg-bg-secondary/60 px-5 py-10 text-center">
               <p className="text-base font-semibold text-text-primary">
                 No links yet
@@ -284,7 +298,7 @@ export default function MyLinksPage() {
             </div>
           ) : null}
 
-          {links.map((link) => {
+          {visibleLinks.map((link) => {
             const payerIdentity = getIdentityPresentation({
               address: link.payerAddress,
               basename: link.payerAddress
@@ -321,7 +335,7 @@ export default function MyLinksPage() {
               Page {page}
             </span>
             <Button
-              disabled={!hasNextPage || isLoading}
+              disabled={!visibleHasNextPage || isLoading}
               onClick={() => setPage((currentPage) => currentPage + 1)}
               type="button"
               variant="secondary"

@@ -37,10 +37,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to verify wallet sign-in.",
+        message: "Unable to verify wallet sign-in.",
       },
       { status: 500 },
     );

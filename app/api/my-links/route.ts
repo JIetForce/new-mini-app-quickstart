@@ -57,8 +57,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message:
-          error instanceof Error ? error.message : "Unable to load wallet links.",
+        message: "Unable to load wallet links.",
       },
       { status: 500 },
     );

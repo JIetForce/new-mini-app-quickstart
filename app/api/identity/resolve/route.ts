@@ -37,13 +37,10 @@ export async function POST(request: NextRequest) {
     applyRateLimitHeaders(response, rateLimit);
 
     return response;
-  } catch (error) {
+  } catch {
     const response = NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to resolve Base names.",
+        message: "Unable to resolve Base names.",
       },
       { status: 500 },
     );

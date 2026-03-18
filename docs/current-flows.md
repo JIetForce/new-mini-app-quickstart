@@ -224,9 +224,8 @@ Turn a public payment attempt into a server-verified, database-persisted paid li
    - `payWithBuilderCode({ amount, to, testnet: false })`
    - this wraps `wallet_sendCalls` with ERC-8021 Builder Code attribution in `capabilities.dataSuffix`
 3. Base Pay returns a `paymentId`.
-4. The client optionally calls `getPaymentStatus()` for immediate UX.
-5. The client sends only `{ paymentId }` to `POST /api/links/[slug]/confirm`.
-6. The confirm route is best-effort rate limited per client IP and slug.
+4. The client sends only `{ paymentId }` to `POST /api/links/[slug]/confirm`.
+5. The confirm route is best-effort rate limited per client IP and slug.
 
 #### Server
 

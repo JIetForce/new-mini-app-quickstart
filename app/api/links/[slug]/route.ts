@@ -38,8 +38,7 @@ export async function GET(
 
     return NextResponse.json(
       {
-        message:
-          error instanceof Error ? error.message : "Unable to load payment link.",
+        message: "Unable to load payment link.",
       },
       { status: 500 },
     );

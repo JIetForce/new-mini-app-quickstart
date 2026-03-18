@@ -124,7 +124,7 @@ export function MyLinkCard({
           </Button>
           {txUrl ? (
             <Button asChild className="sm:col-span-2" variant="ghost">
-              <a href={txUrl} rel="noreferrer" target="_blank">
+              <a href={txUrl} rel="noopener noreferrer" target="_blank">
                 <ExternalLink className="size-4" />
                 View transaction
               </a>

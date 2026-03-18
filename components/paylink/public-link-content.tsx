@@ -246,7 +246,7 @@ export function PublicLinkPaidState({
                   <a
                     className="inline-flex items-center gap-1 text-text-brand-primary hover:text-text-brand-secondary-hover"
                     href={txUrl}
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     target="_blank"
                   >
                     View on BaseScan
@@ -263,7 +263,7 @@ export function PublicLinkPaidState({
             <div className="grid grid-cols-1 gap-2">
               {txUrl ? (
                 <Button asChild>
-                  <a href={txUrl} rel="noreferrer" target="_blank">
+                  <a href={txUrl} rel="noopener noreferrer" target="_blank">
                     <ExternalLink className="size-4" />
                     View transaction
                   </a>
@@ -349,7 +349,7 @@ export function PublicLinkPaidState({
                 <a
                   className="inline-flex items-center gap-1 text-text-brand-primary hover:text-text-brand-secondary-hover"
                   href={txUrl}
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   target="_blank"
                 >
                   View on BaseScan
@@ -435,7 +435,7 @@ export function PublicLinkPaidState({
               <a
                 className="inline-flex items-center gap-1 text-text-brand-primary hover:text-text-brand-secondary-hover"
                 href={txUrl}
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 target="_blank"
               >
                 View on BaseScan
@@ -531,18 +531,9 @@ export function PublicLinkActiveState({
   return (
     <section className="space-y-6">
       <section className="mb-6 flex flex-col items-center gap-4 text-center">
-        {link.creatorPfpUrl ? (
-          <div
-            aria-label={creatorIdentity.primary}
-            className="size-24 rounded-full border-4 border-border-brand-alt bg-bg-tertiary bg-cover bg-center bg-no-repeat"
-            role="img"
-            style={{ backgroundImage: `url(${link.creatorPfpUrl})` }}
-          />
-        ) : (
-          <div className="inline-flex size-24 items-center justify-center rounded-full border-4 border-border-brand-alt bg-bg-brand-primary text-3xl font-bold text-text-brand-primary">
-            {creatorIdentity.avatarFallback}
-          </div>
-        )}
+        <div className="inline-flex size-24 items-center justify-center rounded-full border-4 border-border-brand-alt bg-bg-brand-primary text-3xl font-bold text-text-brand-primary">
+          {creatorIdentity.avatarFallback}
+        </div>
         <div>
           <h1 className="text-[30px] font-bold tracking-tight text-text-primary">
             {creatorIdentity.primary}

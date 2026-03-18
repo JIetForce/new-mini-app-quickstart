@@ -82,7 +82,6 @@ export interface PublicPaymentLink {
   creatorFid: number | null;
   creatorUsername: string | null;
   creatorDisplayName: string | null;
-  creatorPfpUrl: string | null;
   walletAddress: string;
   amountUsdc: string;
   title: string | null;
@@ -331,7 +330,6 @@ export function toPublicPaymentLink(link: PaymentLinkRecord): PublicPaymentLink 
     creatorFid: link.creator_fid,
     creatorUsername: link.creator_username,
     creatorDisplayName: link.creator_display_name,
-    creatorPfpUrl: link.creator_pfp_url,
     walletAddress: link.recipient_address,
     amountUsdc: normalizeUsdcAmount(link.amount_usdc),
     title: link.title,

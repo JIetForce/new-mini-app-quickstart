@@ -9,7 +9,7 @@ Core rule:
 
 ## Current Stack
 
-- Next.js 15 App Router
+- Next.js 16 App Router
 - React 19
 - TypeScript
 - Tailwind CSS v4 + shadcn/ui
@@ -91,3 +91,81 @@ Common commands in this repo:
 - `npm run lint`
 
 For documentation-only tasks, keep docs synchronized and avoid leaving contradictory files behind.
+
+## Recommended Sub-Agent Setup
+
+Use only `gpt-5.3-codex` or `gpt-5.4` for this repo.
+
+Preferred baseline:
+- `Repo Search Explorer`
+  - agent type: `explorer`
+  - model: `gpt-5.3-codex`
+  - purpose:
+    - map routes, data flow, env usage, and file ownership
+    - find all call sites before edits
+    - answer narrow codebase questions quickly
+  - should not own code edits
+
+- `Docs / MCP Explorer`
+  - agent type: `explorer`
+  - model: `gpt-5.4`
+  - purpose:
+    - use Context7 for current library/framework docs
+    - use Figma MCP for design tasks
+    - verify Base / wagmi / viem / Next.js details against official docs before risky changes
+  - use this when current external API behavior matters more than repo-local search
+
+- `Implementation Worker`
+  - agent type: `worker`
+  - model: `gpt-5.4`
+  - purpose:
+    - make production code changes in a clearly assigned write scope
+    - good default for app logic, UI, auth, payments, metadata, or docs changes
+  - assign explicit file ownership before delegating
+
+Useful optional agents:
+- `Security Explorer`
+  - agent type: `explorer`
+  - model: `gpt-5.4`
+  - purpose:
+    - review trust boundaries
+    - trace auth/session/payment verification behavior
+    - inspect migrations, env usage, and deployment-sensitive config
+
+- `UI Worker`
+  - agent type: `worker`
+  - model: `gpt-5.4`
+  - purpose:
+    - isolated redesign or component work in `app/` and `components/`
+    - pair with Figma MCP work from the Docs / MCP Explorer
+
+## Sub-Agent Rules For This Repo
+
+- Start with `Repo Search Explorer` for non-trivial tasks before code changes.
+- Use `Docs / MCP Explorer` whenever changing:
+  - `wagmi`
+  - `viem`
+  - `@base-org/account`
+  - Base Mini App / manifest / metadata behavior
+  - any Figma-driven UI
+- Keep `Implementation Worker` write scopes disjoint.
+- Do not run two workers on the same file set.
+- Good split examples:
+  - one worker on `app/` UI
+  - one worker on `lib/` or `app/api/`
+  - one worker on docs/config such as `README.md`, `docs/`, `farcaster.config.ts`
+- Bad split examples:
+  - two workers both editing `app/r/[slug]/PaymentLinkClient.tsx`
+  - two workers both changing auth/session files under `lib/auth/`
+
+## Context7 / MCP Guidance
+
+- Context7 is useful here for current official usage of:
+  - `wagmi`
+  - `viem`
+  - `Next.js`
+  - other supported external libraries
+- Prefer Context7 or official docs when changing integration details.
+- Do not use Context7 for repo-local questions that can be answered faster by code search.
+- Figma MCP is relevant only for design implementation tasks.
+- Playwright/browser tooling is relevant for runtime UI/debug validation, not for static codebase analysis.

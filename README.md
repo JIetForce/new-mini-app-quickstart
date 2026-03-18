@@ -60,6 +60,7 @@ npx tsc --noEmit
 - Owner-only actions rely on a SIWE-backed wallet session, not on Mini App profile metadata.
 - `/api/auth/nonce` now binds the SIWE nonce to a short-lived signed `httpOnly` pre-auth cookie so the challenge must be redeemed from the same browser that requested it.
 - SIWE origin validation is strict by default against the canonical app URL and can be extended only through `PAY_LINK_ALLOWED_AUTH_ORIGINS`.
+- Local development also allows `http://localhost:3000` and `http://127.0.0.1:3000` automatically in non-production so auth still works if `.env.local` keeps the production `NEXT_PUBLIC_URL`.
 - Public high-cost routes have repo-level best-effort rate limits, but production still needs edge/CDN/platform throttling for durable abuse protection.
 - Repo-visible security headers are defined in `next.config.ts`, including `frame-ancestors`.
 - `frame-ancestors` defaults to `'self'` in production and to `'self'` plus localhost dev origins in local development.

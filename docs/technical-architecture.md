@@ -2,7 +2,7 @@
 
 ## Runtime and Framework
 
-- Framework: Next.js 15 App Router
+- Framework: Next.js 16 App Router
 - React: React 19
 - Language: TypeScript
 - Styling: Tailwind CSS v4 + shadcn/ui primitives + semantic token CSS
@@ -200,8 +200,8 @@ Database:
 
 Browser:
 - `pay()` returns a `paymentId`
-- the client may call `getPaymentStatus()` for immediate UX
 - the client sends only `paymentId` to `/api/links/[slug]/confirm`
+- the browser does not call `getPaymentStatus()` directly anymore
 
 Server:
 - `confirmPaymentLink()` re-validates the payment through `getPaymentStatus()`
@@ -283,6 +283,7 @@ Current behavior:
 - SIWE verification no longer trusts arbitrary request host or forwarded-proto headers
 - the canonical auth origin is derived from `NEXT_PUBLIC_URL` / `getAppUrl()`
 - additional auth origins are accepted only when explicitly listed in `PAY_LINK_ALLOWED_AUTH_ORIGINS`
+- in non-production, `http://localhost:3000` and `http://127.0.0.1:3000` are also accepted automatically for local SIWE flows
 
 Operational note:
 - local preview or alternate deploy domains must be added explicitly if they need to support SIWE auth
